@@ -1,0 +1,25 @@
+# Build artifacts
+/bin/
+*.exe
+*.test
+*.out
+
+# direnv / isolated tooling (must never be committed)
+.envrc
+.gh/
+
+# Generated reports
+/reports/
+*.report.md
+*.report.json
+
+# Go
+vendor/
+coverage.out
+coverage.html
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,30 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+)
+
+var verbose bool
+
+var rootCmd = &cobra.Command{
+	Use:   "toolkit",
+	Short: "Mac DevOps Toolkit Pro — disk cleanup & system monitoring",
+	Long:  `CLI for macOS that covers disk cleanup (11 domains) and system monitors (battery, CPU, memory, network).`,
+	Run: func(cmd *cobra.Command, args []string) {
+		runMenu()
+	},
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func init() {
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+}

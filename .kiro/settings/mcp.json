@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mac-toolkit": {
+      "command": "/Users/jaime.henao/arheanja/scripts-hub/scripts-mac/mac-toolkit/bin/toolkit",
+      "args": ["mcp"]
+    }
+  }
+}
