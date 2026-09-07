@@ -1,0 +1,50 @@
+# GoReleaser configuration — https://goreleaser.com
+# Builds are triggered by pushing a semver tag (vX.Y.Z); see .github/workflows/release.yml
+version: 2
+
+project_name: mac-toolkit
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: toolkit
+    binary: toolkit
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/arheanja-ops/mac-toolkit/cmd.version={{ .Version }}
+      - -X github.com/arheanja-ops/mac-toolkit/cmd.commit={{ .ShortCommit }}
+      - -X github.com/arheanja-ops/mac-toolkit/cmd.date={{ .Date }}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+
+release:
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }} — mac-toolkit"

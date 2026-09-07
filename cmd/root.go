@@ -9,10 +9,19 @@ import (
 
 var verbose bool
 
+// Build metadata, injected at build time via -ldflags by GoReleaser.
+// Defaults are used for local/dev builds.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 var rootCmd = &cobra.Command{
-	Use:   "toolkit",
-	Short: "Mac DevOps Toolkit Pro — disk cleanup & system monitoring",
-	Long:  `CLI for macOS that covers disk cleanup (11 domains) and system monitors (battery, CPU, memory, network).`,
+	Use:     "toolkit",
+	Short:   "Mac DevOps Toolkit Pro — disk cleanup & system monitoring",
+	Long:    `CLI for macOS that covers disk cleanup (11 domains) and system monitors (battery, CPU, memory, network).`,
+	Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 	Run: func(cmd *cobra.Command, args []string) {
 		runMenu()
 	},

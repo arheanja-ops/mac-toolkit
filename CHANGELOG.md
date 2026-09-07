@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `toolkit --version` reporting version, commit and build date (injected at build
+  time via ldflags).
+- Automated release pipeline: pushing a `vX.Y.Z` tag builds macOS arm64/amd64
+  binaries with GoReleaser and publishes a GitHub release with archives and
+  checksums.
+
+### Changed
+- CI actions upgraded to `actions/checkout@v5` and `actions/setup-go@v6`
+  (Node 24 runtime), removing the Node 20 deprecation warning.
+
 ## [1.0.0] - 2026-09-07
 
 ### Fixed
