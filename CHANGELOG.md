@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Multi-client MCP setup guide (`docs/MCP_CLIENTS.md`) for Claude Desktop,
+  Claude Code, VS Code, Cursor, Windsurf, and Zed, plus a README section.
 - `toolkit --version` reporting version, commit and build date (injected at build
   time via ldflags).
 - Automated release pipeline: pushing a `vX.Y.Z` tag builds macOS arm64/amd64

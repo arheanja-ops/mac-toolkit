@@ -164,6 +164,27 @@ O agrega manualmente el MCP server a cualquier agente:
 > (asegúrate de tenerlo en el `PATH`). Alternativamente usa la ruta absoluta al
 > binario, p. ej. `/usr/local/bin/toolkit` o `./bin/toolkit`.
 
+### Configurar en otros clientes (Claude, VS Code, Cursor, Windsurf, Zed)
+
+El servidor es un binario stdio genérico — cualquier cliente MCP lo lanza con
+`command: toolkit`, `args: ["mcp"]`. Ejemplo (Claude Desktop / Cursor, clave `mcpServers`):
+
+```json
+{
+  "mcpServers": {
+    "mac-toolkit": {
+      "command": "toolkit",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+VS Code usa la clave `servers` (no `mcpServers`); Claude Code se configura con
+`claude mcp add mac-toolkit -- toolkit mcp`.
+
+Guía completa por cliente: **[docs/MCP_CLIENTS.md](docs/MCP_CLIENTS.md)**.
+
 ### Ejemplos desde chat
 
 ```
