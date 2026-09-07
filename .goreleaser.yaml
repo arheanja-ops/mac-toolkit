@@ -10,7 +10,7 @@ before:
 
 builds:
   - id: toolkit
-    binary: toolkit
+    binary: mac-toolkit
     main: .
     env:
       - CGO_ENABLED=0

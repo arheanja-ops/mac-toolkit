@@ -18,7 +18,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "toolkit",
+	Use:     "mac-toolkit",
 	Short:   "Mac DevOps Toolkit Pro — disk cleanup & system monitoring",
 	Long:    `CLI for macOS that covers disk cleanup (11 domains) and system monitors (battery, CPU, memory, network).`,
 	Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
