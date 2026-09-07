@@ -35,14 +35,23 @@ func runClean(domain, mode string, execute bool) {
 		return
 	}
 
-	// Show summary first
-	tr := &reporter.TerminalReporter{}
-	tr.Report(results)
+	// Always show the full cleanup plan first (dry-run preview with risks).
+	// Nothing is deleted at this stage.
+	safeCount, _ := reporter.PrintCleanPlan(results)
 
-	// Approval
-	dryRun := !execute
+	if !execute {
+		core.Info("Dry-run — no files deleted. Re-run with --execute to clean with approval.")
+		return
+	}
+
+	if safeCount == 0 {
+		core.Info("No items marked safe to auto-delete; nothing to clean.")
+		return
+	}
+
+	// Execution path: approval, then delete.
 	approvalMode := core.ApprovalMode(mode)
-	engine := core.NewApprovalEngine(approvalMode, dryRun, execute)
+	engine := core.NewApprovalEngine(approvalMode, false, true)
 	approved := engine.FilterItems(results)
 
 	if len(approved) == 0 {
@@ -50,16 +59,16 @@ func runClean(domain, mode string, execute bool) {
 		return
 	}
 
-	// Preview
+	// Final confirmation table of exactly what will be deleted.
 	reporter.PrintPreviewTable(approved)
 
 	// Clean
-	gc := cleaner.NewGenericCleaner(dryRun, execute)
+	gc := cleaner.NewGenericCleaner(false, true)
 	delResults := gc.Clean(approved)
 
 	// Audit
 	audit := &reporter.AuditReporter{
-		DryRun:       dryRun,
+		DryRun:       false,
 		ApprovalMode: approvalMode,
 	}
 	if err := audit.WriteAudit(delResults); err != nil {

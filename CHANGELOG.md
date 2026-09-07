@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-07
+
+### Added
+- Interactive arrow-key menu (promptui), grouped into Disk / Monitors / Reports.
+- Dedicated menu entry **"Cleanup preview (dry-run, shows risks)"** separate from
+  the real clean action.
+- `reporter.PrintCleanPlan`: cleanup preview grouped by domain showing risk, size,
+  age, safe flag and path per item, with per-domain and grand totals and a risk
+  legend.
+
+### Changed
+- **Cleanup now always shows the full plan first.** `toolkit clean` renders the
+  dry-run preview (with risks) before anything happens. Without `--execute` it
+  stops there; with `--execute` it proceeds to approval and a final
+  to-be-deleted table before deleting.
+
+## [1.0.1] - 2026-09-07
+
 ### Added
 - Multi-client MCP setup guide (`docs/MCP_CLIENTS.md`) for Claude Desktop,
   Claude Code, VS Code, Cursor, Windsurf, and Zed, plus a README section.

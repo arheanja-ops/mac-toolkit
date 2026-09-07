@@ -99,3 +99,65 @@ func PrintPreviewTable(items []core.CleanableItem) {
 
 	fmt.Fprintln(os.Stderr, strings.Repeat("─", 70))
 }
+
+// PrintCleanPlan renders the full cleanup plan grouped by domain, with size,
+// risk, age and path per item plus per-domain and grand totals. It is a
+// read-only preview used in dry-run before any approval or deletion.
+func PrintCleanPlan(results []core.AnalysisResult) (safeCount int, safeBytes int64) {
+	fmt.Fprintln(os.Stderr)
+	core.Bold("🔎 Cleanup preview (dry-run) — nothing will be deleted")
+	fmt.Fprintln(os.Stderr, strings.Repeat("─", 72))
+	fmt.Fprintf(os.Stderr, "  Legend: %ssafe%s = auto-regenerated · %swarn%s = review · %sdanger%s = manual only\n",
+		core.RiskColor(core.RiskSafe), "\033[0m",
+		core.RiskColor(core.RiskWarn), "\033[0m",
+		core.RiskColor(core.RiskDanger), "\033[0m")
+	fmt.Fprintln(os.Stderr, strings.Repeat("─", 72))
+
+	var grandBytes int64
+	var grandItems int
+
+	for _, r := range results {
+		if len(r.Items) == 0 {
+			continue
+		}
+
+		var domainBytes int64
+		for _, item := range r.Items {
+			domainBytes += item.SizeBytes
+		}
+
+		fmt.Fprintln(os.Stderr)
+		core.Bold("  %s — %s (%d items)", r.Domain, core.FormatBytes(domainBytes), len(r.Items))
+		fmt.Fprintf(os.Stderr, "    %-6s %-11s %-7s %-6s %s\n", "Risk", "Size", "Age", "Safe", "Path")
+
+		for _, item := range r.Items {
+			safe := "✓"
+			if !item.SafeToDelete {
+				safe = "✗"
+			}
+			ageStr := "-"
+			if item.AgeDays > 0 {
+				ageStr = fmt.Sprintf("%dd", item.AgeDays)
+			}
+			riskColor := core.RiskColor(item.Risk)
+			fmt.Fprintf(os.Stderr, "    %s%-6s%s %-11s %-7s %-6s %s\n",
+				riskColor, string(item.Risk), "\033[0m",
+				core.FormatBytes(item.SizeBytes), ageStr, safe, item.Path)
+
+			grandItems++
+			grandBytes += item.SizeBytes
+			if item.SafeToDelete {
+				safeCount++
+				safeBytes += item.SizeBytes
+			}
+		}
+	}
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, strings.Repeat("─", 72))
+	core.Bold("Total: %s in %d items · safe to auto-delete: %s in %d items",
+		core.FormatBytes(grandBytes), grandItems,
+		core.FormatBytes(safeBytes), safeCount)
+	fmt.Fprintln(os.Stderr, strings.Repeat("─", 72))
+	return safeCount, safeBytes
+}

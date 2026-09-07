@@ -1,55 +1,69 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"strings"
+
+	"github.com/manifoldco/promptui"
 )
 
-var menuOptions = []struct {
+// menuOption is a single selectable action in the interactive menu.
+type menuOption struct {
 	label string
 	fn    func()
-}{
-	{"Analyze disk", func() { analyzeCmd.Run(analyzeCmd, nil) }},
-	{"Clean disk", func() { cleanCmd.Run(cleanCmd, nil) }},
-	{"Full analysis + clean", func() { fullCmd.Run(fullCmd, nil) }},
-	{"Domain status", func() { statusCmd.Run(statusCmd, nil) }},
-	{"Battery monitor", func() { batteryCmd.Run(batteryCmd, nil) }},
-	{"System monitor", func() { systemCmd.Run(systemCmd, nil) }},
-	{"Process monitor", func() { processesCmd.Run(processesCmd, nil) }},
-	{"Network monitor", func() { networkCmd.Run(networkCmd, nil) }},
-	{"View last report", func() { reportCmd.Run(reportCmd, nil) }},
-	{"Quit", nil},
+}
+
+// menuOptions is the ordered, grouped list shown in the arrow-key menu.
+// Separators (fn == nil, label starts with "─") are non-selectable headers.
+var menuOptions = []menuOption{
+	{label: "── Disk ──"},
+	{"🔍  Analyze disk (all domains)", func() { analyzeCmd.Run(analyzeCmd, nil) }},
+	{"🔎  Cleanup preview (dry-run, shows risks)", func() { runClean("", cleanMode, false) }},
+	{"🧹  Clean disk (interactive approval)", func() { runClean("", cleanMode, true) }},
+	{"📊  Full flow (analyze + save + clean)", func() { fullCmd.Run(fullCmd, nil) }},
+	{"📋  Domain status & risk levels", func() { statusCmd.Run(statusCmd, nil) }},
+	{label: "── Monitors ──"},
+	{"🔋  Battery health", func() { batteryCmd.Run(batteryCmd, nil) }},
+	{"💻  System (CPU / memory)", func() { systemCmd.Run(systemCmd, nil) }},
+	{"⚙️   Processes (top CPU / mem)", func() { processesCmd.Run(processesCmd, nil) }},
+	{"🌐  Network", func() { networkCmd.Run(networkCmd, nil) }},
+	{label: "── Reports ──"},
+	{"📄  View last report", func() { reportCmd.Run(reportCmd, nil) }},
+	{label: "──────────"},
+	{"❌  Quit", nil},
 }
 
 func runMenu() {
-	reader := bufio.NewReader(os.Stdin)
+	labels := make([]string, len(menuOptions))
+	for i, o := range menuOptions {
+		labels[i] = o.label
+	}
 
 	for {
-		fmt.Println()
-		fmt.Println("\033[1m🖥  Mac DevOps Toolkit Pro\033[0m")
-		fmt.Println(strings.Repeat("─", 35))
-
-		for i, opt := range menuOptions {
-			fmt.Printf("  \033[36m[%d]\033[0m %s\n", i+1, opt.label)
+		prompt := promptui.Select{
+			Label:    "What would you like to do?",
+			Items:    labels,
+			Size:     len(labels),
+			HideHelp: true,
+			Templates: &promptui.SelectTemplates{
+				Active:   "» {{ . | cyan }}",
+				Inactive: "  {{ . }}",
+				Selected: "» {{ . | green }}",
+			},
 		}
 
-		fmt.Print("\nSelect option: ")
-		input, err := reader.ReadString('\n')
+		idx, _, err := prompt.Run()
 		if err != nil {
+			// Ctrl-C / interrupt → exit cleanly.
+			fmt.Println("\033[32m👋 Bye!\033[0m")
 			return
 		}
-		input = strings.TrimSpace(input)
 
-		// Parse number
-		var choice int
-		if _, err := fmt.Sscanf(input, "%d", &choice); err != nil || choice < 1 || choice > len(menuOptions) {
-			fmt.Println("\033[31mInvalid option\033[0m")
+		opt := menuOptions[idx]
+
+		// Non-selectable separator: ignore and re-prompt.
+		if opt.fn == nil && opt.label != "❌  Quit" {
 			continue
 		}
-
-		opt := menuOptions[choice-1]
 		if opt.fn == nil {
 			fmt.Println("\033[32m👋 Bye!\033[0m")
 			return
