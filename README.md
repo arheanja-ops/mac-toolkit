@@ -12,8 +12,16 @@ CLI nativo para macOS: limpieza de disco, monitoreo del sistema, y optimización
 
 ```bash
 go install github.com/arheanja-ops/mac-toolkit@latest
-toolkit --help   # queda en $(go env GOPATH)/bin
+
+# go install names the binary after the module: `mac-toolkit`.
+# For the shorter `toolkit` command, symlink it once:
+ln -sf "$(go env GOPATH)/bin/mac-toolkit" "$(go env GOPATH)/bin/toolkit"
+
+mac-toolkit --help   # or: toolkit --help
 ```
+
+> Release archives (from the Releases page / GoReleaser) already ship the binary
+> named `toolkit`.
 
 ### Desde el código fuente
 
