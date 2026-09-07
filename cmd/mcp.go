@@ -294,6 +294,15 @@ func handleCleanPreview(_ context.Context, _ *mcp.CallToolRequest, input CleanPr
 // Helpers
 // ---------------------------------------------------------------------------
 
+// isDryRun resolves the dry-run flag with a safe default: nil (field omitted by
+// the caller) means dry-run. Only an explicit false requests real execution.
+func isDryRun(flag *bool) bool {
+	if flag == nil {
+		return true
+	}
+	return *flag
+}
+
 func runAnalysisMCP(domain string) []core.AnalysisResult {
 	var tasks []core.RunnerTask
 
@@ -370,14 +379,14 @@ type DockerBackupInput struct {
 
 type DockerCleanupInput struct {
 	Keep   string `json:"keep" jsonschema:"required,comma-separated container names to preserve"`
-	DryRun bool   `json:"dry_run,omitempty" jsonschema:"optional,default true — set false to execute deletions"`
+	DryRun *bool  `json:"dry_run,omitempty" jsonschema:"optional,default true — set false to execute deletions"`
 }
 
 type DockerCompactInput struct{}
 
 type CleanBatchInput struct {
 	Domains []string `json:"domains,omitempty" jsonschema:"optional,list of domains to clean (empty = all). Valid: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport"`
-	DryRun  bool     `json:"dry_run,omitempty" jsonschema:"optional,default true — set false to execute deletions"`
+	DryRun  *bool    `json:"dry_run,omitempty" jsonschema:"optional,default true — set false to execute deletions"`
 }
 
 type CleanBatchOutput struct {
@@ -412,19 +421,9 @@ func handleDockerCleanup(_ context.Context, _ *mcp.CallToolRequest, input Docker
 	for i := range keepList {
 		keepList[i] = strings.TrimSpace(keepList[i])
 	}
-	// Default to dry-run unless explicitly set to false
-	dryRun := true
-	if !input.DryRun {
-		// The zero value of bool is false, so we need the caller to explicitly pass dry_run=false
-		// Since there's no way to distinguish "not set" from "set to false" in JSON,
-		// we default to dry-run=true for safety
-		dryRun = false
-	}
-	// Actually: treat the field as provided. If DryRun is false, user wants execution.
-	dryRun = input.DryRun || input.Keep == "" // default true if keep is empty
-	if !input.DryRun {
-		dryRun = false
-	}
+
+	// Dry-run is the safe default: only an explicit dry_run=false executes deletions.
+	dryRun := isDryRun(input.DryRun)
 
 	result := docker.Cleanup(keepList, dryRun)
 	if result.Error != "" {
@@ -483,14 +482,15 @@ func handleCleanBatch(_ context.Context, _ *mcp.CallToolRequest, input CleanBatc
 		}
 	}
 
+	dryRun := isDryRun(input.DryRun)
 	output := CleanBatchOutput{
 		Previewed:    preview,
 		SkippedCount: skipped,
-		DryRun:       true,
+		DryRun:       dryRun,
 	}
 
-	// Execute if not dry-run
-	if !input.DryRun {
+	// Execute only when the caller explicitly opted out of dry-run.
+	if !dryRun {
 		gc := cleaner.NewGenericCleaner(false, true)
 		delResults := gc.Clean(safeItems)
 
@@ -509,7 +509,6 @@ func handleCleanBatch(_ context.Context, _ *mcp.CallToolRequest, input CleanBatc
 		output.Deleted = deleted
 		output.FreedBytes = freed
 		output.FreedHuman = core.FormatBytes(freed)
-		output.DryRun = false
 	}
 
 	return nil, output, nil

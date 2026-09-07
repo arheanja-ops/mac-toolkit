@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **MCP cleanup tools could delete by default.** `mac_docker_cleanup` and
+  `mac_clean_batch` used a plain `bool` for `dry_run`, so an omitted flag
+  decoded as `false` and executed real deletions — the opposite of the
+  documented safe default. The flag is now `*bool`: an omitted value means
+  dry-run, and only an explicit `dry_run=false` performs deletions. The
+  contradictory branching in `handleDockerCleanup` was replaced with a single
+  `isDryRun` helper.
 - **Process monitor reported 0.0% CPU/MEM for every process.** System tools like
   `ps` format decimals using the user's locale; on comma-decimal locales
   (e.g. `es_CO`) the output was `87,1` instead of `87.1`, so `ParseFloat`
