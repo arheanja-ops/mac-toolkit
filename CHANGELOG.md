@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   legend.
 
 ### Changed
-- **Cleanup now always shows the full plan first.** `toolkit clean` renders the
+- **Cleanup now always shows the full plan first.** `mac-toolkit clean` renders the
   dry-run preview (with risks) before anything happens. Without `--execute` it
   stops there; with `--execute` it proceeds to approval and a final
   to-be-deleted table before deleting.

@@ -27,6 +27,32 @@ si se pasa `--execute` explícitamente.
 
 ## 2. Compilación (implementación)
 
+### 2.1 Instalación recomendada (comando en el PATH)
+
+El método recomendado instala el binario como `mac-toolkit` en el PATH:
+
+```bash
+# Instala mac-toolkit en $(go env GOPATH)/bin
+go install github.com/arheanja-ops/mac-toolkit@latest
+
+# Verificar
+mac-toolkit --help
+```
+
+Asegúrate de que `$(go env GOPATH)/bin` esté en tu `PATH`. Tras esto puedes usar
+`mac-toolkit analyze`, `mac-toolkit clean`, `mac-toolkit mcp`, etc. desde cualquier
+directorio.
+
+Alternativamente, clona el repo y compila localmente:
+
+```bash
+git clone https://github.com/arheanja-ops/mac-toolkit.git
+cd mac-toolkit
+make build
+```
+
+### 2.2 Build local (repo)
+
 Desde la raíz del proyecto (`mac-toolkit/`):
 
 ```bash
@@ -60,7 +86,10 @@ Verificación rápida tras compilar:
 ## 3. Ejecución
 
 ### 3.1 Menú interactivo
-Ejecutar sin argumentos abre el menú:
+Ejecutar sin argumentos abre el menú interactivo (navegación con flechas ↑↓,
+`promptui`), agrupado en secciones **Disk**, **Monitors** y **Reports**. Incluye
+una opción dedicada *Cleanup preview (dry-run, shows risks)* que muestra qué se
+puede limpiar sin borrar nada.
 
 ```bash
 ./bin/toolkit
@@ -101,13 +130,15 @@ Dominios disponibles: `xcode`, `ollama`, `trash`, `disk`, `logs`, `docker`,
 
 ### 3.4 Limpieza (destructivo solo con --execute)
 
-Por defecto es **dry-run**: no borra nada, solo muestra qué haría.
+`clean` **siempre muestra primero el plan completo en dry-run**: una tabla por
+dominio con riesgo, tamaño, edad, marca de seguro (safe) y ruta, más los totales
+y una leyenda de riesgos. No borra nada en esta fase.
 
 ```bash
-# Dry-run (seguro) — muestra preview y no borra
+# Sin --execute: muestra el plan dry-run y termina (no borra)
 ./bin/toolkit clean
 
-# Modos de aprobación
+# Modos de aprobación (aplican con --execute)
 ./bin/toolkit clean --mode deal        # (por defecto)
 ./bin/toolkit clean --mode category
 ./bin/toolkit clean --mode item
@@ -116,7 +147,8 @@ Por defecto es **dry-run**: no borra nada, solo muestra qué haría.
 # Limpiar un dominio concreto
 ./bin/toolkit clean --domain dev_caches
 
-# EJECUCIÓN REAL (borra archivos aprobados)
+# EJECUCIÓN REAL: tras mostrar el plan, pasa a aprobación interactiva
+# y a una tabla final de confirmación antes de borrar los archivos aprobados
 ./bin/toolkit clean --execute
 ```
 
@@ -141,13 +173,16 @@ Por defecto es **dry-run**: no borra nada, solo muestra qué haría.
 ### 3.7 Servidor MCP (integración con chats de IA)
 
 ```bash
-./bin/toolkit mcp         # arranca servidor MCP por stdio
+./bin/toolkit mcp         # arranca servidor MCP por stdio (build local)
+# o, si instalaste con go install:
+mac-toolkit mcp
 ```
 
-Herramientas expuestas: `mac_analyze`, `mac_battery`, `mac_system`,
-`mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
-`mac_clean_batch`, `mac_docker_backup`, `mac_docker_cleanup`,
-`mac_docker_compact`. Ver `docs/MCP_SETUP.md` para la configuración del cliente.
+Son **11 herramientas**. Read-only/seguras (8): `mac_analyze`, `mac_battery`,
+`mac_system`, `mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
+`mac_docker_compact`. Destructivas con dry-run por defecto (3): `mac_clean_batch`,
+`mac_docker_cleanup`, `mac_docker_backup`. Ver `docs/MCP_CLIENTS.md` y
+`docs/MCP_SETUP.md` para la configuración del cliente.
 
 ---
 

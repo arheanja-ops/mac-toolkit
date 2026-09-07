@@ -32,25 +32,25 @@ make install  # → /usr/local/bin/toolkit
 ## Uso
 
 ```bash
-# Menú interactivo (sin argumentos)
-toolkit
+# Menú interactivo con flechas (↑↓), agrupado en Disk / Monitors / Reports
+mac-toolkit
 
 # Disk cleanup
-toolkit analyze                          # Análisis completo
-toolkit analyze --domain dev_caches      # Solo un dominio
-toolkit analyze --save                   # Guardar reporte MD + JSON
-toolkit clean --execute --mode checklist # Limpieza con checklist
-toolkit full --execute                   # Analizar + guardar + limpiar
+mac-toolkit analyze                          # Análisis completo
+mac-toolkit analyze --domain dev_caches      # Solo un dominio
+mac-toolkit analyze --save                   # Guardar reporte MD + JSON
+mac-toolkit clean --execute --mode checklist # Limpieza con checklist
+mac-toolkit full --execute                   # Analizar + guardar + limpiar
 
 # Monitors
-toolkit battery      # Salud, ciclos, temperatura
-toolkit system       # CPU, memoria, swap, estado térmico
-toolkit processes    # Top 10 por CPU y memoria
-toolkit network      # WiFi, estadísticas, conectividad
+mac-toolkit battery      # Salud, ciclos, temperatura
+mac-toolkit system       # CPU, memoria, swap, estado térmico
+mac-toolkit processes    # Top 10 por CPU y memoria
+mac-toolkit network      # WiFi, estadísticas, conectividad
 
 # Info
-toolkit status       # Dominios registrados y niveles de riesgo
-toolkit report --last # Último reporte guardado
+mac-toolkit status       # Dominios registrados y niveles de riesgo
+mac-toolkit report --last # Último reporte guardado
 ```
 
 ## Dominios de análisis (11)
@@ -111,7 +111,7 @@ El toolkit se puede usar como MCP server, exponiendo todas sus capacidades como 
 
 ```bash
 # Ejecutar como MCP server (stdio)
-toolkit mcp
+mac-toolkit mcp
 ```
 
 ### Herramientas MCP disponibles (11)
@@ -153,7 +153,7 @@ O agrega manualmente el MCP server a cualquier agente:
 {
   "mcpServers": {
     "mac-toolkit": {
-      "command": "toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }
@@ -167,13 +167,13 @@ O agrega manualmente el MCP server a cualquier agente:
 ### Configurar en otros clientes (Claude, VS Code, Cursor, Windsurf, Zed)
 
 El servidor es un binario stdio genérico — cualquier cliente MCP lo lanza con
-`command: toolkit`, `args: ["mcp"]`. Ejemplo (Claude Desktop / Cursor, clave `mcpServers`):
+`command: mac-toolkit`, `args: ["mcp"]`. Ejemplo (Claude Desktop / Cursor, clave `mcpServers`):
 
 ```json
 {
   "mcpServers": {
     "mac-toolkit": {
-      "command": "toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }

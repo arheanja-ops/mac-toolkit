@@ -1,7 +1,7 @@
 # Mac Toolkit MCP — Client Setup (Claude, VS Code, Cursor, and more)
 
 `mac-toolkit` ships a native MCP server over stdio. Any MCP-compatible client can
-launch it with the command `toolkit mcp`. This guide covers the most common
+launch it with the command `mac-toolkit mcp`. This guide covers the most common
 third-party clients.
 
 For Kiro-specific setup, see [MCP_SETUP.md](MCP_SETUP.md).
@@ -14,15 +14,15 @@ For Kiro-specific setup, see [MCP_SETUP.md](MCP_SETUP.md).
 go install github.com/arheanja-ops/mac-toolkit@latest
 ```
 
-This puts `toolkit` in `$(go env GOPATH)/bin`. Make sure that directory is on your
+This puts `mac-toolkit` in `$(go env GOPATH)/bin`. Make sure that directory is on your
 `PATH` so clients can find it. Verify:
 
 ```bash
-which toolkit && toolkit --version
+which mac-toolkit && mac-toolkit --version
 ```
 
-> If a client can't resolve `toolkit` from `PATH`, use the absolute path instead
-> (`$(go env GOPATH)/bin/toolkit`, `/usr/local/bin/toolkit`, or `./bin/toolkit`).
+> If a client can't resolve `mac-toolkit` from `PATH`, use the absolute path instead
+> (`$(go env GOPATH)/bin/mac-toolkit`, `/usr/local/bin/toolkit`, or `./bin/toolkit`).
 
 The server is **local and read-safe by default**: destructive tools require an
 explicit `dry_run=false`. No tokens or network bridge are needed.
@@ -39,7 +39,7 @@ Edit the config file (create it if it doesn't exist):
 {
   "mcpServers": {
     "mac-toolkit": {
-      "command": "toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }
@@ -55,7 +55,7 @@ Restart Claude Desktop. The `mac-toolkit` tools appear under the tools (🔨) me
 One command registers the server:
 
 ```bash
-claude mcp add mac-toolkit -- toolkit mcp
+claude mcp add mac-toolkit -- mac-toolkit mcp
 ```
 
 Check it:
@@ -80,7 +80,7 @@ Per-workspace — create `.vscode/mcp.json`:
   "servers": {
     "mac-toolkit": {
       "type": "stdio",
-      "command": "toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }
@@ -88,7 +88,7 @@ Per-workspace — create `.vscode/mcp.json`:
 ```
 
 Or globally: Command Palette (⌘⇧P) → **MCP: Add Server** → *Command (stdio)* →
-command `toolkit`, args `mcp`. Then open Copilot Chat in **Agent** mode and the
+command `mac-toolkit`, args `mcp`. Then open Copilot Chat in **Agent** mode and the
 `mac-toolkit` tools become available.
 
 ---
@@ -101,7 +101,7 @@ Per-project — create `.cursor/mcp.json` (or global `~/.cursor/mcp.json`):
 {
   "mcpServers": {
     "mac-toolkit": {
-      "command": "toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }
@@ -120,7 +120,7 @@ Edit `~/.codeium/windsurf/mcp_config.json`:
 {
   "mcpServers": {
     "mac-toolkit": {
-      "command": "toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }
@@ -140,7 +140,7 @@ In `settings.json` (Command Palette → *zed: open settings*):
   "context_servers": {
     "mac-toolkit": {
       "command": {
-        "path": "toolkit",
+        "path": "mac-toolkit",
         "args": ["mcp"]
       }
     }
@@ -154,7 +154,7 @@ In `settings.json` (Command Palette → *zed: open settings*):
 
 Any client that speaks MCP over stdio can use:
 
-- **command**: `toolkit`
+- **command**: `mac-toolkit`
 - **args**: `["mcp"]`
 - **transport**: stdio
 - **env**: none required
@@ -176,14 +176,14 @@ Destructive (dry-run by default; require explicit `dry_run=false`):
 
 ```bash
 # List tools over JSON-RPC (quick smoke test)
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | toolkit mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | mac-toolkit mcp
 ```
 
 ## Troubleshooting
 
-- **Client can't find `toolkit`** — use the absolute path in `command`, or ensure
+- **Client can't find `mac-toolkit`** — use the absolute path in `command`, or ensure
   `$(go env GOPATH)/bin` is on your `PATH`.
-- **macOS blocks the binary** — `xattr -d com.apple.quarantine "$(which toolkit)"`.
+- **macOS blocks the binary** — `xattr -d com.apple.quarantine "$(which mac-toolkit)"`.
 - **No battery data** — desktop Macs (iMac/Mac mini/Mac Pro) have no battery, so
   `mac_battery` returns empty.
 - **`mac_analyze` is slow** — the `repos` domain scans large trees; other domains

@@ -25,24 +25,27 @@ Guía de referencia para el Mac Toolkit: CLI nativa en Go para supervisión, lim
 
 ## Instalación
 
+### Recomendado: `go install`
+
+```bash
+go install github.com/arheanja-ops/mac-toolkit@latest
+```
+
+Esto instala el binario como `mac-toolkit` en `$(go env GOPATH)/bin`. Asegúrate de que ese directorio esté en tu `PATH`.
+
 ### Desde código fuente
 
 ```bash
+git clone https://github.com/arheanja-ops/mac-toolkit.git
 cd mac-toolkit
-go build -o bin/toolkit .
-```
-
-### Instalar globalmente
-
-```bash
-make install   # copia a /usr/local/bin/toolkit
+make build     # genera ./bin/toolkit
 ```
 
 ### Verificar
 
 ```bash
-toolkit --help
-toolkit status    # lista dominios registrados
+mac-toolkit --help
+mac-toolkit status    # lista dominios registrados
 ```
 
 ---
@@ -52,43 +55,49 @@ toolkit status    # lista dominios registrados
 ### Menú interactivo
 
 ```bash
-toolkit          # sin argumentos abre el menú
+mac-toolkit          # sin argumentos abre el menú
 ```
+
+El menú es interactivo con navegación por flechas (↑↓, promptui), agrupado en secciones **Disk**, **Monitors** y **Reports**. Incluye una opción dedicada `Cleanup preview (dry-run, shows risks)` para revisar qué se puede limpiar sin borrar nada.
 
 ### Comandos de análisis
 
 ```bash
-toolkit analyze                          # Análisis completo (11 dominios en paralelo)
-toolkit analyze --domain browser         # Solo caches de navegador
-toolkit analyze --domain docker          # Solo Docker
-toolkit analyze --save                   # Guardar reporte MD + JSON en reports/
+mac-toolkit analyze                          # Análisis completo (11 dominios en paralelo)
+mac-toolkit analyze --domain browser         # Solo caches de navegador
+mac-toolkit analyze --domain docker          # Solo Docker
+mac-toolkit analyze --save                   # Guardar reporte MD + JSON en reports/
 ```
 
 ### Comandos de limpieza
 
+`mac-toolkit clean` **siempre** muestra primero el plan completo en dry-run: una tabla por dominio con riesgo, tamaño, edad, si es seguro (safe) y ruta, más los totales y una leyenda de riesgos. No borra nada. Sin `--execute` se detiene ahí.
+
+Con `--execute` continúa a la aprobación interactiva y muestra una tabla final antes de borrar.
+
 ```bash
-toolkit clean                            # Dry-run (muestra qué se borraría)
-toolkit clean --execute                  # Limpieza real con aprobación
-toolkit clean --execute --mode checklist # Selección manual por número
-toolkit clean --execute --domain logs    # Solo logs
-toolkit full --execute                   # Analizar + guardar + limpiar
+mac-toolkit clean                            # Plan dry-run (no borra nada)
+mac-toolkit clean --execute                  # Aprobación interactiva + borrado
+mac-toolkit clean --execute --mode checklist # Selección manual por checklist
+mac-toolkit clean --execute --domain logs    # Solo logs
+mac-toolkit full --execute                   # Analizar + guardar + limpiar
 ```
 
 ### Monitors
 
 ```bash
-toolkit battery      # Salud, ciclos, temperatura, voltaje
-toolkit system       # CPU, memoria, swap, estado térmico, modelo
-toolkit processes    # Top 10 por CPU + top 10 por memoria
-toolkit network      # WiFi, tráfico, conexiones, conectividad
+mac-toolkit battery      # Salud, ciclos, temperatura, voltaje
+mac-toolkit system       # CPU, memoria, swap, estado térmico, modelo
+mac-toolkit processes    # Top 10 por CPU + top 10 por memoria
+mac-toolkit network      # WiFi, tráfico, conexiones, conectividad
 ```
 
 ### Otros
 
 ```bash
-toolkit status           # Dominios y niveles de riesgo
-toolkit report --last    # Ver último reporte guardado
-toolkit mcp              # Iniciar MCP server (stdio)
+mac-toolkit status           # Dominios y niveles de riesgo
+mac-toolkit report --last    # Ver último reporte guardado
+mac-toolkit mcp              # Iniciar MCP server (stdio)
 ```
 
 ---
@@ -104,7 +113,7 @@ MCP (Model Context Protocol) es un protocolo estándar que permite a herramienta
 ### Iniciar manualmente
 
 ```bash
-toolkit mcp    # inicia el server en stdio
+mac-toolkit mcp    # inicia el server en stdio
 ```
 
 No necesitas iniciarlo manualmente — se configura en el agente y Kiro lo inicia automáticamente.
@@ -123,14 +132,14 @@ Crear `.kiro/settings/mcp.json` en el directorio del proyecto:
 {
   "mcpServers": {
     "mac-toolkit": {
-      "command": "/Users/jaime.henao/arheanja/scripts-hub/scripts-mac/mac-toolkit/bin/toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }
 }
 ```
 
-Esto hace que las 7 herramientas estén disponibles en **cualquier agente** cuando trabajas en este workspace.
+Esto hace que las 11 herramientas estén disponibles en **cualquier agente** cuando trabajas en este workspace.
 
 ### Opción 2: MCP global (disponible en todos los proyectos)
 
@@ -140,7 +149,7 @@ Editar `~/.kiro/settings/mcp.json`:
 {
   "mcpServers": {
     "mac-toolkit": {
-      "command": "/Users/jaime.henao/arheanja/scripts-hub/scripts-mac/mac-toolkit/bin/toolkit",
+      "command": "mac-toolkit",
       "args": ["mcp"]
     }
   }
@@ -192,7 +201,7 @@ Esto inicia una sesión con el MCP server ya configurado. Puedes preguntar en es
 ```bash
 kiro-cli mcp add \
   --name mac-toolkit \
-  --command /Users/jaime.henao/arheanja/scripts-hub/scripts-mac/mac-toolkit/bin/toolkit \
+  --command mac-toolkit \
   --args mcp
 ```
 
@@ -211,6 +220,10 @@ kiro-cli chat    # arranca directamente con mac-ops
 
 ## Herramientas MCP disponibles
 
+El toolkit expone **11 herramientas** MCP: 8 de solo lectura / seguras y 3 destructivas (con `dry_run=true` por defecto).
+
+### Solo lectura / seguras (8)
+
 | Herramienta | Descripción | Parámetros |
 |-------------|-------------|------------|
 | `mac_analyze` | Análisis de disco completo o por dominio. Retorna JSON con severidad, tamaño, items, y riesgo por dominio. | `domain` (opcional): browser, docker, ollama, logs, dev_caches, xcode, repos, downloads, appsupport, trash, disk |
@@ -220,6 +233,17 @@ kiro-cli chat    # arranca directamente con mac-ops
 | `mac_network` | Red: WiFi SSID/señal/canal, bytes enviados/recibidos, conexiones activas, check de conectividad. | — |
 | `mac_status` | Lista todos los dominios registrados con su nivel de riesgo (safe/warn/danger). | — |
 | `mac_clean_preview` | Preview de limpieza: items seguros vs inseguros, tamaños, razones. Nunca borra nada. | `domain` (opcional) |
+| `mac_docker_compact` | Analiza `Docker.raw` (tamaño virtual vs uso real) y da instrucciones para recuperar espacio. No modifica nada. | — |
+
+### Destructivas — `dry_run=true` por defecto (3)
+
+Estas herramientas requieren confirmación explícita del usuario y solo ejecutan cambios reales con `dry_run=false`.
+
+| Herramienta | Descripción | Parámetros |
+|-------------|-------------|------------|
+| `mac_clean_batch` | Ejecuta limpieza por lotes. Con `dry_run=true` (default) solo muestra el plan; con `dry_run=false` borra. | `dry_run` (default true), `domain` (opcional) |
+| `mac_docker_cleanup` | Limpieza de recursos Docker (imágenes/contenedores/volúmenes). `dry_run=true` por defecto. | `dry_run` (default true) |
+| `mac_docker_backup` | Backup de datos Docker antes de operaciones destructivas. `dry_run=true` por defecto. | `dry_run` (default true) |
 
 ### Ejemplo de respuesta de `mac_analyze`
 
@@ -307,7 +331,7 @@ Acepta español e inglés: `s`, `si`, `sí`, `y`, `yes`
 ## Seguridad
 
 ### Dry-run por defecto
-Sin `--execute`, el toolkit **nunca borra nada**. Muestra qué se borraría.
+`mac-toolkit clean` siempre muestra primero el plan completo en dry-run y **nunca borra nada** sin `--execute`. Con `--execute` pasa a aprobación interactiva y una tabla final antes de borrar.
 
 ### Blacklist permanente
 Estos paths están protegidos y nunca se borran:
@@ -322,8 +346,8 @@ Cada sesión de limpieza genera `audit.json` con:
 - Modo de aprobación
 - Lista de eliminaciones con resultado (success/failure/skipped)
 
-### MCP: solo lectura
-El MCP server **no puede borrar archivos**. Solo expone análisis, monitoreo, y preview. La limpieza real requiere terminal interactiva con aprobación del usuario.
+### MCP: seguro por defecto
+De las 11 herramientas MCP, 8 son de solo lectura (análisis, monitoreo, preview) y nunca modifican el disco. Las 3 destructivas (`mac_clean_batch`, `mac_docker_cleanup`, `mac_docker_backup`) usan `dry_run=true` por defecto: solo muestran el plan y requieren `dry_run=false` con confirmación explícita del usuario para ejecutar cambios reales.
 
 ---
 
@@ -432,7 +456,7 @@ kiro-cli mcp list
 
 ### Analyzer timeout
 
-Si un analyzer tarda mucho, el runner lo cancela a los 120 segundos y retorna un resultado con `error: "timeout"`. Los otros analyzers no se ven afectados.
+Si un analyzer tarda mucho, el runner lo cancela a los 180 segundos y retorna un resultado con `error: "timeout"`. Los otros analyzers no se ven afectados.
 
 ### Permisos en paths del sistema
 
@@ -461,7 +485,7 @@ mac-toolkit/
 │   ├── status.go             # status (dominios + riesgos)
 │   ├── report.go             # report --last
 │   ├── monitors.go           # battery, system, processes, network
-│   └── mcp.go                # MCP server (7 tools, stdio transport)
+│   └── mcp.go                # MCP server (11 tools, stdio transport)
 ├── internal/
 │   ├── core/                  # Fundamentos
 │   │   ├── config.go         # Paths, thresholds, blacklists

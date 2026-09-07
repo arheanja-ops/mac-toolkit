@@ -14,15 +14,15 @@ The binary is called `toolkit`. It uses **cobra** for command routing.
 | Command              | Description                                        |
 | -------------------- | -------------------------------------------------- |
 | `toolkit`            | No subcommand → interactive menu (huh/bubbletea)   |
-| `toolkit analyze`    | Run all 11 analyzers, print results, don't delete  |
-| `toolkit clean`      | Analyze → approval → delete (dry-run by default)   |
-| `toolkit full`       | Analyze + save report + clean (dry-run by default) |
-| `toolkit status`     | Print domain list with risk levels                 |
-| `toolkit report`     | Show saved reports                                 |
-| `toolkit battery`    | Battery health monitor                             |
-| `toolkit system`     | CPU, memory, swap, thermal monitor                 |
-| `toolkit processes`  | Top processes by CPU and memory                    |
-| `toolkit network`    | WiFi, connections, connectivity monitor            |
+| `mac-toolkit analyze`    | Run all 11 analyzers, print results, don't delete  |
+| `mac-toolkit clean`      | Analyze → approval → delete (dry-run by default)   |
+| `mac-toolkit full`       | Analyze + save report + clean (dry-run by default) |
+| `mac-toolkit status`     | Print domain list with risk levels                 |
+| `mac-toolkit report`     | Show saved reports                                 |
+| `mac-toolkit battery`    | Battery health monitor                             |
+| `mac-toolkit system`     | CPU, memory, swap, thermal monitor                 |
+| `mac-toolkit processes`  | Top processes by CPU and memory                    |
+| `mac-toolkit network`    | WiFi, connections, connectivity monitor            |
 
 #### Global Flags
 

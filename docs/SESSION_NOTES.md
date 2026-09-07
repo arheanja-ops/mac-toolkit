@@ -1,5 +1,11 @@
 # Proyecto Mac Toolkit + MCP Servers — Estado al 2026-08-29
 
+> **Nota (actualización 2026-09-07):** esta es una bitácora histórica. El estado
+> actual difiere en: el comando instalado es **`mac-toolkit`** (no `toolkit`); el
+> servidor MCP expone **11 tools** (no 7); el timeout por analyzer es **180s**; el
+> repositorio vive en `github.com/arheanja-ops/mac-toolkit`. Ver README.md y
+> CHANGELOG.md para el estado vigente.
+
 ## Quién
 - Usuario: Jaime Henao (jaime.henao)
 - Equipo: BA (British Airways) — Platform/DevOps
