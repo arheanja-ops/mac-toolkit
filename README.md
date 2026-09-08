@@ -210,6 +210,10 @@ make build      # go build -o bin/toolkit
 make lint       # go vet ./...
 ```
 
+> **Flujo de contribución y release** (PR → merge → tag → build): ver
+> **[docs/RELEASE_WORKFLOW.md](docs/RELEASE_WORKFLOW.md)**. Cada cambio va por PR;
+> cada versión se publica con un tag `vX.Y.Z` que dispara GoReleaser.
+
 ### Kiro Skills disponibles
 
 | Skill | Descripción |
