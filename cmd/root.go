@@ -23,7 +23,7 @@ var rootCmd = &cobra.Command{
 	Long:    `CLI for macOS that covers disk cleanup (11 domains) and system monitors (battery, CPU, memory, network).`,
 	Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 	Run: func(cmd *cobra.Command, args []string) {
-		runMenu()
+		runTUI()
 	},
 }
 
