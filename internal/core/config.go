@@ -5,9 +5,11 @@ import (
 	"path/filepath"
 )
 
-// AnalyzerTimeoutSeconds bounds each analyzer. Repo scans over large source
-// trees are the slowest domain, so this leaves headroom above their typical
-// runtime while still guarding against a runaway walk.
+// AnalyzerTimeoutSeconds is a global guardrail shared by all analyzers running
+// in parallel — it is a safety net against a runaway walk, NOT the primary
+// mechanism that keeps scans fast. The repos analyzer bounds its own cost by
+// collecting target paths cheaply and measuring their sizes with a concurrent
+// worker pool (see ReposAnalyzer.Analyze), so it stays well under this budget.
 const AnalyzerTimeoutSeconds = 180
 
 // DefaultMinSizeMB is the minimum file size (in MB) to flag in downloads
