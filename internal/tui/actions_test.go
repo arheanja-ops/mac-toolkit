@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/arheanja-ops/mac-toolkit/internal/core"
 )
 
 func TestFormatSnapshotSortedAndSafe(t *testing.T) {
@@ -105,5 +107,48 @@ func TestBuildActionsAreReadOnly(t *testing.T) {
 		if strings.Contains(l, "clean") || strings.Contains(l, "preview") || strings.Contains(l, "full") {
 			t.Fatalf("destructive action leaked into TUI: %q", a.label)
 		}
+	}
+}
+
+func TestBuildActionsHasQuit(t *testing.T) {
+	var found bool
+	for _, a := range buildActions() {
+		if a.quit {
+			found = true
+			if a.group != "Session" {
+				t.Fatalf("quit action should be in Session group, got %q", a.group)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected a quit action in buildActions()")
+	}
+}
+
+// TestFormatAnalysisExcludesDiskAndErrors verifies the reclaimable total counts
+// only genuine junk: the "disk" domain (volume usage) and errored domains must
+// not inflate it.
+func TestFormatAnalysisExcludesDiskAndErrors(t *testing.T) {
+	results := []core.AnalysisResult{
+		{Domain: "disk", TotalSize: 365 * 1024 * 1024 * 1024, Severity: core.SeverityLow},
+		{Domain: "dev_caches", TotalSize: 2 * 1024 * 1024 * 1024, Severity: core.SeverityLow},
+		{Domain: "docker", TotalSize: 8 * 1024 * 1024 * 1024, Severity: core.SeverityHigh},
+		{Domain: "ollama", Error: "read failed"},
+	}
+	out := formatAnalysis(results)
+
+	// Reclaimable = dev_caches + docker = 10 GB. Disk (365 GB) and the errored
+	// ollama domain must be excluded.
+	reclaimable := core.FormatBytes(10 * 1024 * 1024 * 1024)
+	if !strings.Contains(out, "Total reclaimable (excl. disk): "+reclaimable) {
+		t.Fatalf("reclaimable total wrong; want %s, got:\n%s", reclaimable, out)
+	}
+	// Disk is reported as context, not inside the total.
+	if !strings.Contains(out, "Disk usage (context): "+core.FormatBytes(365*1024*1024*1024)) {
+		t.Fatalf("disk context line missing:\n%s", out)
+	}
+	// The errored domain still appears in the table as an error row.
+	if !strings.Contains(out, "read failed") {
+		t.Fatalf("errored domain should still be listed:\n%s", out)
 	}
 }

@@ -19,6 +19,10 @@ type actionItem struct {
 	label string
 	group string
 	run   func() (string, error)
+	// quit marks a control action that must terminate the program via tea.Quit
+	// rather than run(). run() returns (string,error) and cannot close the TUI,
+	// so the model checks this flag in execSelected() instead.
+	quit bool
 }
 
 // buildActions returns the ordered, grouped, read-only action set for Phase
@@ -32,6 +36,9 @@ func buildActions() []actionItem {
 		{label: "Processes", group: "Monitors", run: monitorRunner(&monitor.ProcessMonitor{})},
 		{label: "Network", group: "Monitors", run: monitorRunner(&monitor.NetworkMonitor{})},
 		{label: "Last report", group: "Reports", run: runLastReport},
+		// Session controls. Quit has no run(); it is handled specially by the
+		// model, which returns tea.Quit when this item is selected.
+		{label: "Quit / Salir", group: "Session", quit: true},
 	}
 }
 
@@ -56,12 +63,24 @@ func formatAnalysis(results []core.AnalysisResult) string {
 	})
 
 	var b strings.Builder
-	var total int64
+	var total int64          // sum of genuinely reclaimable junk (excludes disk + errors)
+	var diskUsage int64      // the "disk" domain reports volume usage, not junk
+	var haveDisk bool
 	fmt.Fprintf(&b, "%-14s %-10s %-11s %s\n", "Domain", "Severity", "Size", "Items")
 	fmt.Fprintln(&b, strings.Repeat("─", 48))
 	for _, r := range sorted {
 		if r.Error != "" {
+			// Errored domains have no trustworthy size; never fold into the total.
 			fmt.Fprintf(&b, "%-14s %-10s %-11s %s\n", r.Domain, "error", "-", r.Error)
+			continue
+		}
+		// The "disk" domain is the volume's used space (~hundreds of GB), not
+		// deletable garbage. Track it separately as context, not as reclaimable.
+		if r.Domain == "disk" {
+			diskUsage = r.TotalSize
+			haveDisk = true
+			fmt.Fprintf(&b, "%-14s %-10s %-11s %d\n",
+				r.Domain, string(r.Severity), core.FormatBytes(r.TotalSize), len(r.Items))
 			continue
 		}
 		total += r.TotalSize
@@ -69,7 +88,10 @@ func formatAnalysis(results []core.AnalysisResult) string {
 			r.Domain, string(r.Severity), core.FormatBytes(r.TotalSize), len(r.Items))
 	}
 	fmt.Fprintln(&b, strings.Repeat("─", 48))
-	fmt.Fprintf(&b, "Total reclaimable: %s\n", core.FormatBytes(total))
+	if haveDisk {
+		fmt.Fprintf(&b, "Disk usage (context): %s\n", core.FormatBytes(diskUsage))
+	}
+	fmt.Fprintf(&b, "Total reclaimable (excl. disk): %s\n", core.FormatBytes(total))
 	return b.String()
 }
 
