@@ -4,7 +4,9 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/arheanja-ops/mac-toolkit.svg)](https://pkg.go.dev/github.com/arheanja-ops/mac-toolkit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-CLI nativo para macOS: limpieza de disco, monitoreo del sistema, y optimización. Binario único, cero dependencias de runtime.
+CLI nativo para macOS: limpieza de disco, monitoreo del sistema, y optimización.
+Incluye una **TUI interactiva estilo k9s** (dos paneles + header en vivo). Binario
+único, cero dependencias de runtime.
 
 ## Instalación
 
@@ -31,10 +33,32 @@ make install  # → /usr/local/bin/toolkit
 
 ## Uso
 
-```bash
-# Menú interactivo con flechas (↑↓), agrupado en Disk / Monitors / Reports
-mac-toolkit
+### TUI interactiva (estilo k9s) — recomendado
 
+```bash
+mac-toolkit          # sin argumentos abre la TUI de dos paneles
+mac-toolkit tui      # equivalente explícito
+```
+
+Al abrir entra a una pantalla de bienvenida con un resumen del sistema. El layout:
+
+- **Header en vivo** (se refresca solo): uso de disco, memoria, CPU y estado térmico.
+- **Panel izquierdo** — acciones agrupadas en Disk / Monitors / Reports.
+- **Panel derecho** — resultado de la acción seleccionada, con scroll.
+
+Navegación: `↑↓` mover · `Tab` cambiar de panel · `⏎` ejecutar · `/` filtrar ·
+`q` salir (o la acción **Salir** del menú).
+
+> La TUI es de solo lectura (analyze + monitores + status). La limpieza
+> interactiva y el diagnóstico con IA llegan en fases siguientes (ver `docs/specs/`).
+
+```bash
+mac-toolkit menu     # menú lineal (promptui) — fallback si no hay TUI
+```
+
+### Comandos directos
+
+```bash
 # Disk cleanup
 mac-toolkit analyze                          # Análisis completo
 mac-toolkit analyze --domain dev_caches      # Solo un dominio
@@ -87,11 +111,12 @@ mac-toolkit report --last # Último reporte guardado
 
 ```
 mac-toolkit/
-├── cmd/              # Cobra CLI (9 subcomandos + menú interactivo)
+├── cmd/              # Cobra CLI (subcomandos + TUI + menú lineal)
 ├── internal/
 │   ├── core/         # config, models, runner (goroutines), logger, approval
 │   ├── analyzer/     # Interfaz + 11 domain analyzers (auto-registrados via init())
 │   ├── monitor/      # Interfaz + 4 monitors (battery, system, processes, network)
+│   ├── tui/          # TUI estilo k9s (Bubble Tea): 2 paneles + header en vivo
 │   ├── cleaner/      # Blacklist + GenericCleaner
 │   └── reporter/     # terminal, markdown, json, audit
 ├── docs/             # requirements.md, design.md, tasks.md
@@ -199,6 +224,7 @@ Guía completa por cliente: **[docs/MCP_CLIENTS.md](docs/MCP_CLIENTS.md)**.
 
 - **cobra v1.8.1** — CLI framework
 - **go-sdk v1.7.0** — MCP server (Model Context Protocol oficial)
+- **bubbletea · lipgloss · bubbles** (charmbracelet) — TUI estilo k9s (`internal/tui/`)
 - Go stdlib para todo lo demás (exec.Command, filepath.WalkDir, goroutines, net/http)
 
 ## Desarrollo
@@ -241,6 +267,6 @@ go test ./... -v -count=1
 
 ---
 
-*Mac Toolkit v1.0 — Go CLI + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
+*Mac Toolkit v1.3 — Go CLI + TUI (k9s-style) + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
 
 Ver [TOOLKIT_GUIDE.md](TOOLKIT_GUIDE.md) para documentación completa: configuración MCP en Kiro Desktop/CLI, herramientas disponibles, seguridad, skills, y guía de extensibilidad.
