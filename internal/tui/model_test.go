@@ -148,3 +148,42 @@ func isQuit(msg tea.Msg) bool {
 	_, ok := msg.(tea.QuitMsg)
 	return ok
 }
+
+// quitActionIndex finds the list index of the special quit action so the test
+// does not hardcode a position that shifts when actions are reordered.
+func quitActionIndex(m model) int {
+	for i, it := range m.actions.Items() {
+		li, ok := it.(listItem)
+		if ok && li.action.quit {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestEnterOnQuitActionQuits(t *testing.T) {
+	m := sizedModel()
+	idx := quitActionIndex(m)
+	if idx < 0 {
+		t.Fatal("expected a quit action in the list")
+	}
+	m.actions.Select(idx)
+	nm, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = nm.(model)
+	if m.running {
+		t.Fatal("selecting Quit must not start a run")
+	}
+	if cmd == nil || !isQuit(cmd()) {
+		t.Fatal("selecting the Quit action should return tea.Quit")
+	}
+}
+
+func TestWelcomeContentIsInitialDetail(t *testing.T) {
+	m := sizedModel()
+	// Before any action runs, the detail pane must show the welcome dashboard,
+	// not a bare hint.
+	view := m.detail.View()
+	if !strings.Contains(view, "System summary") {
+		t.Fatalf("expected welcome dashboard as initial detail, got: %q", view)
+	}
+}

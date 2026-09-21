@@ -137,14 +137,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // onResize recomputes pane geometry. Left pane is a fixed slice of the width,
-// the viewport takes the rest; both leave room for header and footer.
+// the viewport takes the rest; both leave room for header and footer. Each pane
+// has a rounded border costing 2 columns; a 1-column gap separates them so the
+// borders never visually collide (╮╭). Total horizontal chrome = 2+2 borders +
+// 1 gap = 5 columns, subtracted from the detail width so tables never overflow.
 func (m model) onResize(msg tea.WindowSizeMsg) model {
 	m.width, m.height = msg.Width, msg.Height
 	leftW := msg.Width / 4
 	if leftW < 18 {
 		leftW = 18
 	}
-	rightW := msg.Width - leftW - 4
+	// leftW is the inner list width; the border adds 2. Subtract both panes'
+	// borders (4) plus the 1-column gap to get the detail's inner width.
+	rightW := msg.Width - leftW - paneBorderWidth*2 - panelGap
+	if rightW < 10 {
+		rightW = 10
+	}
 	bodyH := msg.Height - 4
 	if bodyH < 3 {
 		bodyH = 3
@@ -152,7 +160,8 @@ func (m model) onResize(msg tea.WindowSizeMsg) model {
 	m.actions.SetSize(leftW, bodyH)
 	if !m.ready {
 		m.detail = viewport.New(rightW, bodyH)
-		m.detail.SetContent(detailHint)
+		// Open on a welcome dashboard, not a bare hint, for a k9s-like feel.
+		m.detail.SetContent(welcomeContent(m.version, m.disk, m.hdr))
 		m.ready = true
 	} else {
 		m.detail.Width, m.detail.Height = rightW, bodyH
@@ -212,10 +221,17 @@ func (m model) forwardToFocused(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // execSelected runs the selected action off the event loop. Headers are not
-// executable, so selecting one is a no-op.
+// executable, so selecting one is a no-op. A control action flagged quit=true
+// terminates the program with tea.Quit instead of invoking run().
 func (m model) execSelected() (tea.Model, tea.Cmd) {
 	it, ok := m.actions.SelectedItem().(listItem)
-	if !ok || it.header || it.action.run == nil {
+	if !ok || it.header {
+		return m, nil
+	}
+	if it.action.quit {
+		return m, tea.Quit
+	}
+	if it.action.run == nil {
 		return m, nil
 	}
 	m.running = true
@@ -233,7 +249,14 @@ func togglePanel(p panel) panel {
 	return actionsPanel
 }
 
-const detailHint = "⏎ para ejecutar la acción seleccionada"
+const (
+	// paneBorderWidth is the horizontal cost of a lipgloss rounded border
+	// (left + right = 2 columns).
+	paneBorderWidth = 2
+	// panelGap is the blank-column separation inserted between the two panes so
+	// their borders never touch (avoids the ╮╭ collision).
+	panelGap = 1
+)
 
 var (
 	focusedBorder = lipgloss.NewStyle().
@@ -259,9 +282,12 @@ func (m model) View() string {
 
 	left := paneStyle(m.focus == actionsPanel).Render(m.actions.View())
 	right := paneStyle(m.focus == detailPanel).Render(detail)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	// gap keeps the two bordered panes visually separated; its width matches the
+	// panelGap subtracted in onResize so geometry and rendering stay in sync.
+	gap := strings.Repeat(" ", panelGap)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
 
-	footer := footerStyle.Render("↑↓ nav · Tab foco · ⏎ ejecutar · / filtrar · q salir")
+	footer := footerStyle.Render("↑↓ nav · Tab foco · ⏎ ejecutar · / filtrar · Quit o q salir")
 
 	return strings.Join([]string{header, body, footer}, "\n")
 }
