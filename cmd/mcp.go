@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/arheanja-ops/mac-toolkit/internal/ai"
 	"github.com/arheanja-ops/mac-toolkit/internal/analyzer"
 	"github.com/arheanja-ops/mac-toolkit/internal/cleaner"
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
@@ -94,8 +95,13 @@ func runMCPServer() {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mac_clean_batch",
-		Description: "Clean multiple domains at once. Only deletes safe_to_delete items. Returns preview by default (dry_run=true). Domains: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport.",
+		Description: "Clean multiple domains at once. Only deletes safe_to_delete items. Returns preview by default (dry_run=true). Set dry_run=false to execute deletions. Domains: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport.",
 	}, handleCleanBatch)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mac_doctor",
+		Description: "Diagnose system health: runs all analyzers + monitors, builds a PII-free aggregate, and returns a prioritized Diagnosis (performance, quick_wins, review) plus disk context and reclaimable-safe bytes. Uses Groq when GROQ_API_KEY is set, otherwise a deterministic heuristic. Read-only — never deletes.",
+	}, handleDoctor)
 
 	// Run over stdio
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
@@ -117,14 +123,14 @@ type AnalyzeOutput struct {
 }
 
 type domainResult struct {
-	Domain    string        `json:"domain"`
-	Severity  string        `json:"severity"`
-	TotalSize string        `json:"total_size"`
-	SizeBytes int64         `json:"size_bytes"`
-	ItemCount int           `json:"item_count"`
-	Summary   string        `json:"summary"`
-	Error     string        `json:"error,omitempty"`
-	Items     []domainItem  `json:"items,omitempty"`
+	Domain    string       `json:"domain"`
+	Severity  string       `json:"severity"`
+	TotalSize string       `json:"total_size"`
+	SizeBytes int64        `json:"size_bytes"`
+	ItemCount int          `json:"item_count"`
+	Summary   string       `json:"summary"`
+	Error     string       `json:"error,omitempty"`
+	Items     []domainItem `json:"items,omitempty"`
 }
 
 type domainItem struct {
@@ -512,4 +518,21 @@ func handleCleanBatch(_ context.Context, _ *mcp.CallToolRequest, input CleanBatc
 	}
 
 	return nil, output, nil
+}
+
+// ---------------------------------------------------------------------------
+// Doctor MCP tool
+// ---------------------------------------------------------------------------
+
+type DoctorInput struct {
+	NoAI bool `json:"no_ai,omitempty" jsonschema:"optional,force the deterministic heuristic engine instead of Groq"`
+}
+
+// handleDoctor exposes the structured Diagnosis over MCP. It reuses the same
+// snapshot builder and orchestrator as the CLI, so behavior is identical. It is
+// strictly read-only and safe to call.
+func handleDoctor(_ context.Context, _ *mcp.CallToolRequest, input DoctorInput) (*mcp.CallToolResult, ai.Diagnosis, error) {
+	snap := buildDoctorSnapshot()
+	diag := ai.Diagnose(snap, ai.Options{NoAI: input.NoAI})
+	return nil, diag, nil
 }
