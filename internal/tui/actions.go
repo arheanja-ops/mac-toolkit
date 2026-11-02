@@ -25,14 +25,22 @@ type actionItem struct {
 	// rather than run(). run() returns (string,error) and cannot close the TUI,
 	// so the model checks this flag in execSelected() instead.
 	quit bool
+	// openClean marks the "Clean (select & delete)" action: instead of running,
+	// the model enters the interactive select mode (F2). Like quit, this is a
+	// control action the model handles specially rather than via run().
+	openClean bool
 }
 
-// buildActions returns the ordered, grouped, read-only action set for Phase
-// TUI-1 (F5). Destructive/dry-run actions (Preview, Clean, Full) are omitted.
+// buildActions returns the ordered, grouped action set. Phase TUI-1 actions
+// (Analyze, Status, monitors, Last report, Quit) stay read-only. Phase TUI-2
+// adds a Clean group: Preview (dry-run, never deletes) and Clean (opens the
+// interactive select-and-delete flow, which still requires the F3 "si" gate).
 func buildActions() []actionItem {
 	return []actionItem{
 		{label: "Analyze", group: "Disk", run: runAnalyze},
 		{label: "Status", group: "Disk", run: runStatus},
+		{label: "Preview", group: "Clean", run: runPreview},
+		{label: "Clean (select & delete)", group: "Clean", openClean: true},
 		{label: "Battery", group: "Monitors", run: monitorRunner(&monitor.BatteryMonitor{})},
 		{label: "System", group: "Monitors", run: monitorRunner(&monitor.SystemMonitor{})},
 		{label: "Processes", group: "Monitors", run: monitorRunner(&monitor.ProcessMonitor{})},
@@ -44,15 +52,10 @@ func buildActions() []actionItem {
 	}
 }
 
-// runAnalyze reuses core.RunAnalyzers over the registered analyzers and
-// formats the results as a plain-text table for the viewport.
+// runAnalyze reuses core.RunAnalyzers (via analysisFn) over the registered
+// analyzers and formats the results as a plain-text table for the viewport.
 func runAnalyze() (string, error) {
-	var tasks []core.RunnerTask
-	for _, a := range analyzer.All() {
-		tasks = append(tasks, core.RunnerTask{Domain: a.Domain(), AnalyzeFn: a.Analyze})
-	}
-	results := core.RunAnalyzers(tasks, core.AnalyzerTimeoutSeconds)
-	return formatAnalysis(results), nil
+	return formatAnalysis(analysisFn()), nil
 }
 
 // formatAnalysis renders analysis results largest-first as an aligned, colored
@@ -147,6 +150,41 @@ func proportionBar(size, max int64, width int) string {
 	}
 	return lipgloss.NewStyle().Foreground(accent).Render(strings.Repeat("▰", filled)) +
 		ruleStyle.Render(strings.Repeat("▱", width-filled))
+}
+
+// runPreview renders the cleanup plan as a dry-run, tabulated for the viewport.
+// It is the F1 "Preview" action: it NEVER deletes. It reuses formatAnalysis for
+// the per-domain summary table, then appends a per-item safe/risk breakdown so
+// the user sees exactly what the interactive Clean flow would offer — the same
+// information as the CLI's PrintCleanPlan, adapted to the detail pane.
+func runPreview() (string, error) {
+	results := analysisFn()
+	var b strings.Builder
+	b.WriteString(formatAnalysis(results))
+	b.WriteString("\n")
+	b.WriteString(tableHeaderStyle.Render("Cleanup plan (dry-run) — nada se borra") + "\n")
+	b.WriteString(ruleStyle.Render(strings.Repeat("─", 62)) + "\n")
+
+	rows := buildCleanRows(results)
+	if len(rows) == 0 {
+		b.WriteString("  (no reclaimable items)\n")
+		return b.String(), nil
+	}
+	safeBytes, safeCount := markedTotals(rows)
+	for _, r := range rows {
+		mark := cleanDimRow.Render("·")
+		if r.markable {
+			mark = lipgloss.NewStyle().Foreground(riskSafe).Render("✓")
+		}
+		risk := lipgloss.NewStyle().Foreground(riskColor(r.item.Risk)).
+			Render(fmt.Sprintf("%-6s", string(r.item.Risk)))
+		fmt.Fprintf(&b, "  %s %s %10s  %s · %s\n",
+			mark, risk, core.FormatBytes(r.item.SizeBytes), r.item.Domain, r.item.Label)
+	}
+	b.WriteString(ruleStyle.Render(strings.Repeat("─", 62)) + "\n")
+	fmt.Fprintf(&b, "Safe to auto-delete: %s in %d items\n",
+		core.FormatBytes(safeBytes), safeCount)
+	return b.String(), nil
 }
 
 // runStatus reuses the analyzer registry (same source as statusCmd) to list

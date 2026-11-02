@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/arheanja-ops/mac-toolkit/internal/cleaner"
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
@@ -127,10 +126,7 @@ func confirmFinalDeletion(items []core.CleanableItem) bool {
 	if err != nil && line == "" {
 		return false // EOF / read error with no input → never delete
 	}
-	switch strings.TrimSpace(strings.ToLower(line)) {
-	case "si", "sí", "yes", "y":
-		return true
-	default:
-		return false
-	}
+	// Delegate the affirmative decision to the shared core gate so the CLI and
+	// the TUI modal can never disagree about what counts as "yes".
+	return core.IsAffirmative(line)
 }

@@ -61,6 +61,14 @@ type model struct {
 	width   int
 	height  int
 	ready   bool
+
+	// TUI-2 clean flow state (spec Data model). mode is normalMode unless the
+	// user is in the interactive select/confirm/cleaning flow.
+	mode         cleanMode
+	rows         []cleanRow    // selectable rows while in selectMode/confirmMode
+	cursor       int           // highlighted row in selectMode
+	confirmInput string        // text typed into the F3 confirmation modal
+	cleanResult  *cleanSummary // result shown in cleaningMode once deletion ends
 }
 
 // newModel builds the initial model with the read-only action set. It does not
@@ -125,6 +133,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, headerTick() // reprogram next tick
 	case actionResultMsg:
 		return m.onActionResult(msg), nil
+	case cleanDoneMsg:
+		// Deletion finished off the event loop; capture the summary so
+		// cleaningMode renders freed space / audit path (or an error).
+		m.running = false
+		res := msg.summary
+		m.cleanResult = &res
+		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -181,9 +196,21 @@ func (m model) onActionResult(msg actionResultMsg) model {
 	return m
 }
 
-// onKey routes key presses based on focus and filtering state. Quit and Tab
-// are global; everything else is delegated to the focused pane.
+// onKey routes key presses. Clean-flow modes (select/confirm/cleaning) capture
+// keys first so the normal browser shortcuts never leak into a modal. In
+// normalMode, Quit and Tab are global and k9s-style shortcuts (a/c/p) trigger
+// existing actions; everything else is delegated to the focused pane.
 func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Clean flow owns the keyboard while active (F2/F3).
+	switch m.mode {
+	case selectMode:
+		return m.onSelectKey(msg)
+	case confirmMode:
+		return m.onConfirmKey(msg)
+	case cleaningMode:
+		return m.onCleaningKey(msg)
+	}
+
 	// While filtering, let the list consume keys (Esc/Enter close the filter).
 	if m.actions.FilterState() == list.Filtering {
 		var cmd tea.Cmd
@@ -203,6 +230,12 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.focus == actionsPanel {
 			return m.execSelected()
 		}
+	case "a":
+		return m.runAction(runAnalyze)
+	case "p":
+		return m.runAction(runPreview)
+	case "c":
+		return m.enterSelect(), nil
 	}
 
 	return m.forwardToFocused(msg)
@@ -221,7 +254,8 @@ func (m model) forwardToFocused(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // execSelected runs the selected action off the event loop. Headers are not
 // executable, so selecting one is a no-op. A control action flagged quit=true
-// terminates the program with tea.Quit instead of invoking run().
+// terminates the program; openClean=true enters the interactive select flow
+// (F2) instead of invoking run().
 func (m model) execSelected() (tea.Model, tea.Cmd) {
 	it, ok := m.actions.SelectedItem().(listItem)
 	if !ok || it.header {
@@ -230,15 +264,108 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 	if it.action.quit {
 		return m, tea.Quit
 	}
+	if it.action.openClean {
+		return m.enterSelect(), nil
+	}
 	if it.action.run == nil {
 		return m, nil
 	}
+	return m.runAction(it.action.run)
+}
+
+// runAction starts a read-only action off the event loop (shared by execSelected
+// and the a/p shortcuts). It never deletes — run() only produces viewport text.
+func (m model) runAction(run func() (string, error)) (tea.Model, tea.Cmd) {
 	m.running = true
-	run := it.action.run
 	return m, tea.Batch(m.spinner.Tick, func() tea.Msg {
 		out, err := run()
 		return actionResultMsg{out: out, err: err}
 	})
+}
+
+// enterSelect builds the clean rows from a fresh analysis and switches to
+// selectMode. Entering selection NEVER deletes; it is pure preparation (F2).
+// Safe items arrive pre-marked; the cursor starts on the first row.
+func (m model) enterSelect() model {
+	m.rows = buildCleanRows(analysisFn())
+	m.cursor = 0
+	m.confirmInput = ""
+	m.cleanResult = nil
+	m.mode = selectMode
+	return m
+}
+
+// onSelectKey handles the checkbox list keys (F2): ↑↓ move, space toggles a
+// markable row (no-op otherwise), 'a' marks all safe, 'n' clears, Esc cancels
+// to normal, ⏎ advances to the confirmation modal. If nothing is markable the
+// only exit is Esc.
+func (m model) onSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = normalMode
+		return m, nil
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < len(m.rows)-1 {
+			m.cursor++
+		}
+	case " ":
+		toggleMark(m.rows, m.cursor) // model-level guard: no-op on warn/danger
+	case "a":
+		markAllSafe(m.rows)
+	case "n":
+		unmarkAll(m.rows)
+	case "enter":
+		if _, count := markedTotals(m.rows); count > 0 {
+			m.mode = confirmMode
+			m.confirmInput = ""
+		}
+	}
+	return m, nil
+}
+
+// onConfirmKey handles the modal (F3): typing fills confirmInput, Esc cancels
+// to normal (no deletion), ⏎ evaluates the gate. Only core.IsAffirmative opens
+// it; anything else cancels without deleting.
+func (m model) onConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.mode = normalMode
+		m.confirmInput = ""
+		return m, nil
+	case tea.KeyEnter:
+		if !core.IsAffirmative(m.confirmInput) {
+			// No explicit "si" → cancel, delete nothing (the inviolable gate).
+			m.mode = normalMode
+			m.confirmInput = ""
+			return m, nil
+		}
+		m.mode = cleaningMode
+		m.running = true
+		m.cleanResult = nil
+		return m, tea.Batch(m.spinner.Tick, runCleanCmd(m.rows))
+	case tea.KeyBackspace:
+		if n := len(m.confirmInput); n > 0 {
+			m.confirmInput = m.confirmInput[:n-1]
+		}
+	case tea.KeyRunes, tea.KeySpace:
+		m.confirmInput += string(msg.Runes)
+	}
+	return m, nil
+}
+
+// onCleaningKey ignores input while the deletion runs; once the result is in,
+// any key returns to the normal browser.
+func (m model) onCleaningKey(_ tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.cleanResult != nil {
+		m.mode = normalMode
+		m.cleanResult = nil
+		m.rows = nil
+	}
+	return m, nil
 }
 
 func togglePanel(p panel) panel {
@@ -263,7 +390,8 @@ var (
 
 // View renders header + two bordered panes (with titles embedded in the top
 // border, k9s-style) + a key-hint footer. Render logic only; state never
-// mutates here.
+// mutates here. Clean-flow modes swap the detail content and, for confirmMode,
+// overlay a centered modal.
 func (m model) View() string {
 	if !m.ready {
 		return "Loading…"
@@ -271,8 +399,8 @@ func (m model) View() string {
 
 	header := renderHeader(m.version, m.disk, m.hdr, m.width)
 
-	detail := m.detail.View()
-	if m.running {
+	detail := m.cleanDetail()
+	if m.running && m.mode == normalMode {
 		detail = m.spinner.View() + " running…\n\n" + detail
 	}
 
@@ -280,14 +408,54 @@ func (m model) View() string {
 	// border wraps the content exactly — nothing is clipped or left ragged.
 	leftW, rightW, bodyH := m.paneGeometry()
 	left := paneBorder("ACTIONS", m.focus == actionsPanel, leftW, bodyH).Render(m.actions.View())
-	right := paneBorder("DETAILS", m.focus == detailPanel, rightW, bodyH).Render(detail)
+	right := paneBorder(m.detailTitle(), m.focus == detailPanel, rightW, bodyH).Render(detail)
 
 	// gap keeps the two bordered panes visually separated; its width matches the
 	// panelGap subtracted in onResize so geometry and rendering stay in sync.
 	gap := strings.Repeat(" ", panelGap)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
 
-	return strings.Join([]string{header, body, renderFooter()}, "\n")
+	// The confirmation modal (F3) is drawn centered over the whole body so it
+	// reads as a focused overlay, not inline text.
+	if m.mode == confirmMode {
+		bytes, count := markedTotals(m.rows)
+		modal := renderConfirmModal(count, bytes, m.confirmInput)
+		bw, bh := lipgloss.Width(body), lipgloss.Height(body)
+		body = lipgloss.Place(bw, bh, lipgloss.Center, lipgloss.Center, modal)
+	}
+
+	return strings.Join([]string{header, body, renderFooter(m.mode)}, "\n")
+}
+
+// cleanDetail returns the detail-pane content for the current mode. normalMode
+// shows the viewport; the clean modes render their own views.
+func (m model) cleanDetail() string {
+	switch m.mode {
+	case selectMode:
+		_, rightW, _ := m.paneGeometry()
+		return renderSelect(m.rows, m.cursor, rightW)
+	case cleaningMode:
+		return renderCleaning(m.spinner.View(), m.cleanResult)
+	case confirmMode:
+		// The modal is overlaid in View(); behind it we keep the select list so
+		// the frame size stays stable.
+		_, rightW, _ := m.paneGeometry()
+		return renderSelect(m.rows, m.cursor, rightW)
+	default:
+		return m.detail.View()
+	}
+}
+
+// detailTitle labels the right pane per mode so the border reads as a tab.
+func (m model) detailTitle() string {
+	switch m.mode {
+	case selectMode, confirmMode:
+		return "CLEAN"
+	case cleaningMode:
+		return "CLEANING"
+	default:
+		return "DETAILS"
+	}
 }
 
 // paneGeometry recomputes the inner (content) dimensions of both panes from the
@@ -309,15 +477,29 @@ func (m model) paneGeometry() (leftW, rightW, bodyH int) {
 	return leftW, rightW, bodyH
 }
 
-// renderFooter builds the key-hint bar: each key in the accent, its description
-// muted, separated by faint dots — legible, not saturated.
-func renderFooter() string {
-	hints := []struct{ key, desc string }{
-		{"↑↓", "navegar"},
-		{"Tab", "panel"},
-		{"⏎", "ejecutar"},
-		{"/", "filtrar"},
-		{"q", "salir"},
+// renderFooter builds the key-hint bar for the current mode. normalMode shows
+// the browser + k9s shortcuts; the clean modes show their own keys so the user
+// always sees what the active mode accepts.
+func renderFooter(mode cleanMode) string {
+	var hints []struct{ key, desc string }
+	switch mode {
+	case selectMode:
+		hints = []struct{ key, desc string }{
+			{"↑↓", "mover"}, {"espacio", "marcar"}, {"a", "todos"},
+			{"n", "ninguno"}, {"⏎", "continuar"}, {"Esc", "cancelar"},
+		}
+	case confirmMode:
+		hints = []struct{ key, desc string }{
+			{"si+⏎", "confirmar"}, {"Esc", "cancelar"},
+		}
+	case cleaningMode:
+		hints = []struct{ key, desc string }{{"⏎", "volver"}}
+	default:
+		hints = []struct{ key, desc string }{
+			{"↑↓", "navegar"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
+			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
+			{"/", "filtrar"}, {"q", "salir"},
+		}
 	}
 	parts := make([]string, 0, len(hints))
 	for _, h := range hints {
