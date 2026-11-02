@@ -96,9 +96,15 @@ mac-toolkit report --last # Último reporte guardado
 ## Seguridad
 
 - **Dry-run por defecto** — sin `--execute` nunca borra nada
+- **Confirmación final** — con `--execute`, además de la aprobación por modo, se
+  exige escribir `si` tras ver el número de elementos y el tamaño total
 - **Blacklist** permanente: `/System`, `/usr`, `/bin`, `/sbin`, `/private/var/db`
 - **Preview** antes de borrar con tamaño, riesgo y antigüedad
+- **TUI de solo lectura** — la TUI solo analiza y monitorea; no borra
 - **Audit log** JSON por sesión con UUID
+
+> Garantías completas y verificables (qué es solo lectura, qué requiere
+> confirmación, y dónde está en el código): **[docs/SAFETY.md](docs/SAFETY.md)**.
 
 ## Modos de aprobación (`--mode`)
 

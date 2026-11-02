@@ -1,6 +1,12 @@
 package cmd
 
 import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
 	"github.com/arheanja-ops/mac-toolkit/internal/cleaner"
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/reporter"
@@ -62,6 +68,15 @@ func runClean(domain, mode string, execute bool) {
 	// Final confirmation table of exactly what will be deleted.
 	reporter.PrintPreviewTable(approved)
 
+	// Last-line-of-defense gate: in addition to the per-mode approval above,
+	// require one explicit affirmative typed on stdin that names the exact
+	// count and total size. This guarantees no deletion ever happens from a
+	// stray flag or an accidental Enter — the user must consciously type "si".
+	if !confirmFinalDeletion(approved) {
+		core.Info("Aborted — nothing was deleted.")
+		return
+	}
+
 	// Clean
 	gc := cleaner.NewGenericCleaner(false, true)
 	delResults := gc.Clean(approved)
@@ -85,4 +100,37 @@ func runClean(domain, mode string, execute bool) {
 		}
 	}
 	core.Success("Cleaned %d items, freed %s", deleted, core.FormatBytes(freedBytes))
+}
+
+// finalConfirmReader is the source of the final-confirmation input. It is a
+// package var defaulting to os.Stdin so tests can feed a scripted answer
+// without a real terminal — mirroring the injectable-var pattern used
+// elsewhere in the codebase.
+var finalConfirmReader io.Reader = os.Stdin
+
+// confirmFinalDeletion is the explicit, additional human gate shown right
+// before any file is removed. It states the exact number of items and total
+// size, then only returns true when the user types an unambiguous affirmative
+// ("si"/"sí"/"yes"/"y"). Any other input — including an empty line or EOF —
+// is treated as "no", so the safe default is always to NOT delete.
+func confirmFinalDeletion(items []core.CleanableItem) bool {
+	var total int64
+	for _, it := range items {
+		total += it.SizeBytes
+	}
+
+	core.Warn("Esto eliminará %d elementos (%s). Esta acción es irreversible.",
+		len(items), core.FormatBytes(total))
+	fmt.Fprint(os.Stderr, `Escribe "si" para confirmar: `)
+
+	line, err := bufio.NewReader(finalConfirmReader).ReadString('\n')
+	if err != nil && line == "" {
+		return false // EOF / read error with no input → never delete
+	}
+	switch strings.TrimSpace(strings.ToLower(line)) {
+	case "si", "sí", "yes", "y":
+		return true
+	default:
+		return false
+	}
 }

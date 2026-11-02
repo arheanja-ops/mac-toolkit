@@ -10,6 +10,8 @@ import (
 	"github.com/arheanja-ops/mac-toolkit/internal/analyzer"
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // actionItem is a single read-only entry in the left panel. run adapts an
@@ -53,8 +55,11 @@ func runAnalyze() (string, error) {
 	return formatAnalysis(results), nil
 }
 
-// formatAnalysis renders analysis results largest-first without ANSI codes,
-// keeping it independent from the stderr terminal reporter.
+// formatAnalysis renders analysis results largest-first as an aligned, colored
+// table with fixed-width columns (Domain, Severity, Size right-aligned, Items,
+// and a proportion bar) so the detail pane reads like the doctor/reporter
+// output rather than ragged plain text. Colors come from the shared palette
+// keyed on severity, keeping parity with the terminal reporter.
 func formatAnalysis(results []core.AnalysisResult) string {
 	sorted := make([]core.AnalysisResult, len(results))
 	copy(sorted, results)
@@ -62,16 +67,28 @@ func formatAnalysis(results []core.AnalysisResult) string {
 		return sorted[i].TotalSize > sorted[j].TotalSize
 	})
 
+	// The proportion bar is scaled against the largest single domain so the
+	// biggest consumer fills the bar and everything else reads relative to it.
+	var maxSize int64
+	for _, r := range sorted {
+		if r.Error == "" && r.TotalSize > maxSize {
+			maxSize = r.TotalSize
+		}
+	}
+
 	var b strings.Builder
-	var total int64          // sum of genuinely reclaimable junk (excludes disk + errors)
-	var diskUsage int64      // the "disk" domain reports volume usage, not junk
+	var total int64     // sum of genuinely reclaimable junk (excludes disk + errors)
+	var diskUsage int64 // the "disk" domain reports volume usage, not junk
 	var haveDisk bool
-	fmt.Fprintf(&b, "%-14s %-10s %-11s %s\n", "Domain", "Severity", "Size", "Items")
-	fmt.Fprintln(&b, strings.Repeat("─", 48))
+
+	fmt.Fprintln(&b, tableHeaderStyle.Render(
+		fmt.Sprintf("%-14s %-9s %11s %6s  %s", "DOMAIN", "SEVERITY", "SIZE", "ITEMS", "SHARE")))
+	fmt.Fprintln(&b, ruleStyle.Render(strings.Repeat("─", 62)))
+
 	for _, r := range sorted {
 		if r.Error != "" {
 			// Errored domains have no trustworthy size; never fold into the total.
-			fmt.Fprintf(&b, "%-14s %-10s %-11s %s\n", r.Domain, "error", "-", r.Error)
+			b.WriteString(analysisErrorRow(r))
 			continue
 		}
 		// The "disk" domain is the volume's used space (~hundreds of GB), not
@@ -79,30 +96,69 @@ func formatAnalysis(results []core.AnalysisResult) string {
 		if r.Domain == "disk" {
 			diskUsage = r.TotalSize
 			haveDisk = true
-			fmt.Fprintf(&b, "%-14s %-10s %-11s %d\n",
-				r.Domain, string(r.Severity), core.FormatBytes(r.TotalSize), len(r.Items))
-			continue
+		} else {
+			total += r.TotalSize
 		}
-		total += r.TotalSize
-		fmt.Fprintf(&b, "%-14s %-10s %-11s %d\n",
-			r.Domain, string(r.Severity), core.FormatBytes(r.TotalSize), len(r.Items))
+		b.WriteString(analysisRow(r, maxSize))
 	}
-	fmt.Fprintln(&b, strings.Repeat("─", 48))
+
+	fmt.Fprintln(&b, ruleStyle.Render(strings.Repeat("─", 62)))
 	if haveDisk {
 		fmt.Fprintf(&b, "Disk usage (context): %s\n", core.FormatBytes(diskUsage))
 	}
+	// Summary lines are left unstyled so they remain machine-greppable (the CLI
+	// and tests match these exact strings); the table above carries the color.
 	fmt.Fprintf(&b, "Total reclaimable (excl. disk): %s\n", core.FormatBytes(total))
 	return b.String()
 }
 
+// analysisRow renders one data row with a severity-colored domain name and a
+// proportion bar scaled to maxSize.
+func analysisRow(r core.AnalysisResult, maxSize int64) string {
+	color := severityColor(r.Severity)
+	domain := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf("%-14s", r.Domain))
+	sev := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf("%-9s", string(r.Severity)))
+	bar := proportionBar(r.TotalSize, maxSize, 12)
+	return fmt.Sprintf("%s %s %11s %6d  %s\n",
+		domain, sev, core.FormatBytes(r.TotalSize), len(r.Items), bar)
+}
+
+// analysisErrorRow renders a domain whose analysis failed. It carries no size,
+// so it shows a dash and the error message in the danger color.
+func analysisErrorRow(r core.AnalysisResult) string {
+	domain := lipgloss.NewStyle().Foreground(riskDanger).Render(fmt.Sprintf("%-14s", r.Domain))
+	sev := lipgloss.NewStyle().Foreground(riskDanger).Render(fmt.Sprintf("%-9s", "error"))
+	return fmt.Sprintf("%s %s %11s %6s  %s\n", domain, sev, "-", "-", r.Error)
+}
+
+// proportionBar renders a fixed-width unicode bar showing size relative to the
+// largest domain. It is intentionally uncolored (neutral faint) so the severity
+// color on the row stays the only semantic color per line.
+func proportionBar(size, max int64, width int) string {
+	if max <= 0 || size <= 0 {
+		return ruleStyle.Render(strings.Repeat("·", width))
+	}
+	filled := int(size * int64(width) / max)
+	if filled > width {
+		filled = width
+	}
+	if filled < 1 {
+		filled = 1 // any non-zero domain shows at least one cell
+	}
+	return lipgloss.NewStyle().Foreground(accent).Render(strings.Repeat("▰", filled)) +
+		ruleStyle.Render(strings.Repeat("▱", width-filled))
+}
+
 // runStatus reuses the analyzer registry (same source as statusCmd) to list
-// domains and their risk levels.
+// domains and their risk levels, each risk colored via the shared palette.
 func runStatus() (string, error) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%-15s %s\n", "Domain", "Risk")
-	fmt.Fprintln(&b, strings.Repeat("─", 29))
+	fmt.Fprintln(&b, tableHeaderStyle.Render(fmt.Sprintf("%-15s %s", "Domain", "Risk")))
+	fmt.Fprintln(&b, ruleStyle.Render(strings.Repeat("─", 29)))
 	for _, a := range analyzer.All() {
-		fmt.Fprintf(&b, "%-15s %s\n", a.Domain(), string(a.Risk()))
+		risk := a.Risk()
+		colored := lipgloss.NewStyle().Foreground(riskColor(risk)).Render(string(risk))
+		fmt.Fprintf(&b, "%-15s %s\n", a.Domain(), colored)
 	}
 	return b.String(), nil
 }
@@ -121,11 +177,12 @@ func monitorRunner(m monitor.Monitor) func() (string, error) {
 }
 
 // formatSnapshot renders a monitor snapshot as sorted "key: value" lines so
-// the output is deterministic regardless of Go's map iteration order.
+// the output is deterministic regardless of Go's map iteration order. The
+// title and rule use the shared palette to match the analysis/status tables.
 func formatSnapshot(name string, data map[string]any) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s monitor\n", name)
-	fmt.Fprintln(&b, strings.Repeat("─", 40))
+	fmt.Fprintln(&b, tableHeaderStyle.Render(name+" monitor"))
+	fmt.Fprintln(&b, ruleStyle.Render(strings.Repeat("─", 40)))
 	if len(data) == 0 {
 		fmt.Fprintln(&b, "(no data available)")
 		return b.String()
@@ -136,7 +193,7 @@ func formatSnapshot(name string, data map[string]any) string {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		fmt.Fprintf(&b, "  %-20s %v\n", k+":", data[k])
+		fmt.Fprintf(&b, "  %s %v\n", hdrLabelStyle.Render(fmt.Sprintf("%-20s", k+":")), data[k])
 	}
 	return b.String()
 }

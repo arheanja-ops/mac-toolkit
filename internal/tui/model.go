@@ -68,11 +68,10 @@ type model struct {
 func newModel(version string) model {
 	items := buildListItems(buildActions())
 
-	delegate := list.NewDefaultDelegate()
-	delegate.ShowDescription = false
-
-	l := list.New(items, delegate, 0, 0)
+	// Custom delegate renders the k9s-style hierarchy (group headers + caret).
+	l := list.New(items, actionDelegate{}, 0, 0)
 	l.Title = "ACTIONS"
+	l.SetShowTitle(false) // the pane border carries the "ACTIONS" title instead
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true)
@@ -259,15 +258,12 @@ const (
 )
 
 var (
-	focusedBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62"))
-	blurredBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240"))
-	footerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	footerStyle = lipgloss.NewStyle().Foreground(textFaint)
 )
 
-// View renders header + two bordered panes + footer. Render logic only; state
-// never mutates here.
+// View renders header + two bordered panes (with titles embedded in the top
+// border, k9s-style) + a key-hint footer. Render logic only; state never
+// mutates here.
 func (m model) View() string {
 	if !m.ready {
 		return "Loading…"
@@ -280,21 +276,52 @@ func (m model) View() string {
 		detail = m.spinner.View() + " running…\n\n" + detail
 	}
 
-	left := paneStyle(m.focus == actionsPanel).Render(m.actions.View())
-	right := paneStyle(m.focus == detailPanel).Render(detail)
+	// Inner content dimensions mirror what onResize handed to each pane, so the
+	// border wraps the content exactly — nothing is clipped or left ragged.
+	leftW, rightW, bodyH := m.paneGeometry()
+	left := paneBorder("ACTIONS", m.focus == actionsPanel, leftW, bodyH).Render(m.actions.View())
+	right := paneBorder("DETAILS", m.focus == detailPanel, rightW, bodyH).Render(detail)
+
 	// gap keeps the two bordered panes visually separated; its width matches the
 	// panelGap subtracted in onResize so geometry and rendering stay in sync.
 	gap := strings.Repeat(" ", panelGap)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
 
-	footer := footerStyle.Render("↑↓ nav · Tab foco · ⏎ ejecutar · / filtrar · Quit o q salir")
-
-	return strings.Join([]string{header, body, footer}, "\n")
+	return strings.Join([]string{header, body, renderFooter()}, "\n")
 }
 
-func paneStyle(focused bool) lipgloss.Style {
-	if focused {
-		return focusedBorder
+// paneGeometry recomputes the inner (content) dimensions of both panes from the
+// current window size, using the exact arithmetic as onResize so View() and the
+// pre-sized widgets agree.
+func (m model) paneGeometry() (leftW, rightW, bodyH int) {
+	leftW = m.width / 4
+	if leftW < 18 {
+		leftW = 18
 	}
-	return blurredBorder
+	rightW = m.width - leftW - paneBorderWidth*2 - panelGap
+	if rightW < 10 {
+		rightW = 10
+	}
+	bodyH = m.height - 4
+	if bodyH < 3 {
+		bodyH = 3
+	}
+	return leftW, rightW, bodyH
+}
+
+// renderFooter builds the key-hint bar: each key in the accent, its description
+// muted, separated by faint dots — legible, not saturated.
+func renderFooter() string {
+	hints := []struct{ key, desc string }{
+		{"↑↓", "navegar"},
+		{"Tab", "panel"},
+		{"⏎", "ejecutar"},
+		{"/", "filtrar"},
+		{"q", "salir"},
+	}
+	parts := make([]string, 0, len(hints))
+	for _, h := range hints {
+		parts = append(parts, footerKeyStyle.Render(h.key)+" "+footerDescStyle.Render(h.desc))
+	}
+	return footerStyle.Render(strings.Join(parts, sepStyle.Render(" · ")))
 }
