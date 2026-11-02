@@ -151,31 +151,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // onResize recomputes pane geometry. Left pane is a fixed slice of the width,
-// the viewport takes the rest; both leave room for header and footer. Each pane
-// has a rounded border costing 2 columns; a 1-column gap separates them so the
-// borders never visually collide (╮╭). Total horizontal chrome = 2+2 borders +
-// 1 gap = 5 columns, subtracted from the detail width so tables never overflow.
+// the viewport takes the rest; both leave room for header, a one-line air gap,
+// and the footer. Each pane has a rounded border costing 2 columns; a 1-column
+// gap separates them so the borders never visually collide (╮╭). Total
+// horizontal chrome = 2+2 borders + 1 gap = 5 columns, subtracted from the
+// detail width so tables never overflow.
 func (m model) onResize(msg tea.WindowSizeMsg) model {
 	m.width, m.height = msg.Width, msg.Height
-	leftW := msg.Width / 4
-	if leftW < 18 {
-		leftW = 18
-	}
-	// leftW is the inner list width; the border adds 2. Subtract both panes'
-	// borders (4) plus the 1-column gap to get the detail's inner width.
-	rightW := msg.Width - leftW - paneBorderWidth*2 - panelGap
-	if rightW < 10 {
-		rightW = 10
-	}
-	bodyH := msg.Height - 4
-	if bodyH < 3 {
-		bodyH = 3
-	}
+	leftW, rightW, bodyH := geometryFor(msg.Width, msg.Height)
 	m.actions.SetSize(leftW, bodyH)
 	if !m.ready {
 		m.detail = viewport.New(rightW, bodyH)
 		// Open on a welcome dashboard, not a bare hint, for a k9s-like feel.
-		m.detail.SetContent(welcomeContent(m.version, m.disk, m.hdr))
+		m.detail.SetContent(padLines(welcomeContent(m.version, m.disk, m.hdr, rightW)))
 		m.ready = true
 	} else {
 		m.detail.Width, m.detail.Height = rightW, bodyH
@@ -184,13 +172,14 @@ func (m model) onResize(msg tea.WindowSizeMsg) model {
 }
 
 // onActionResult renders an action's output or error into the detail viewport.
-// An error is shown in the panel and never terminates the program.
+// An error is shown in the panel and never terminates the program. Content is
+// left-padded one column so it does not sit flush against the pane border.
 func (m model) onActionResult(msg actionResultMsg) model {
 	m.running = false
 	if msg.err != nil {
-		m.detail.SetContent("Error: " + msg.err.Error())
+		m.detail.SetContent(padLines("Error: " + msg.err.Error()))
 	} else {
-		m.detail.SetContent(msg.out)
+		m.detail.SetContent(padLines(msg.out))
 	}
 	m.detail.GotoTop()
 	return m
@@ -275,10 +264,12 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 
 // runAction starts a read-only action off the event loop (shared by execSelected
 // and the a/p shortcuts). It never deletes — run() only produces viewport text.
-func (m model) runAction(run func() (string, error)) (tea.Model, tea.Cmd) {
+// The current right-pane width is captured so the action renders responsively.
+func (m model) runAction(run func(width int) (string, error)) (tea.Model, tea.Cmd) {
 	m.running = true
+	_, rightW, _ := m.paneGeometry()
 	return m, tea.Batch(m.spinner.Tick, func() tea.Msg {
-		out, err := run()
+		out, err := run(rightW)
 		return actionResultMsg{out: out, err: err}
 	})
 }
@@ -382,6 +373,11 @@ const (
 	// panelGap is the blank-column separation inserted between the two panes so
 	// their borders never touch (avoids the ╮╭ collision).
 	panelGap = 1
+	// verticalChrome is the number of rows consumed outside the pane body:
+	// header(1) + air(1) + footer(1) + pane top/bottom borders(2). Subtracting
+	// it from the terminal height yields the inner body height so the whole
+	// frame fits exactly in H rows (no scroll phantom at 24 lines).
+	verticalChrome = 5
 )
 
 var (
@@ -415,6 +411,17 @@ func (m model) View() string {
 	gap := strings.Repeat(" ", panelGap)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
 
+	// Hard-clip the body to the exact frame size. The Bubbles list can report a
+	// render height a few rows taller than the size we set it (blank group
+	// spacers the delegate emits are not counted in its Height()), which would
+	// otherwise push the whole frame past the terminal height and cause a
+	// phantom scroll. MaxHeight/MaxWidth guarantee the body never exceeds its
+	// budget: body rows = bodyH inner + 2 border rows.
+	body = lipgloss.NewStyle().
+		MaxWidth(m.width).
+		MaxHeight(bodyH + paneBorderWidth).
+		Render(body)
+
 	// The confirmation modal (F3) is drawn centered over the whole body so it
 	// reads as a focused overlay, not inline text.
 	if m.mode == confirmMode {
@@ -424,23 +431,27 @@ func (m model) View() string {
 		body = lipgloss.Place(bw, bh, lipgloss.Center, lipgloss.Center, modal)
 	}
 
-	return strings.Join([]string{header, body, renderFooter(m.mode)}, "\n")
+	// One blank "air" line between the header and the bordered body so the top
+	// of the frame is not cramped against the header. Its single row is part of
+	// verticalChrome, keeping header+air+body+footer == height exactly.
+	return strings.Join([]string{header, "", body, renderFooter(m.mode, m.width)}, "\n")
 }
 
 // cleanDetail returns the detail-pane content for the current mode. normalMode
-// shows the viewport; the clean modes render their own views.
+// shows the viewport; the clean modes render their own views. Clean-mode output
+// is left-padded one column to match the viewport's inner margin.
 func (m model) cleanDetail() string {
 	switch m.mode {
 	case selectMode:
 		_, rightW, _ := m.paneGeometry()
-		return renderSelect(m.rows, m.cursor, rightW)
+		return padLines(renderSelect(m.rows, m.cursor, rightW))
 	case cleaningMode:
-		return renderCleaning(m.spinner.View(), m.cleanResult)
+		return padLines(renderCleaning(m.spinner.View(), m.cleanResult))
 	case confirmMode:
 		// The modal is overlaid in View(); behind it we keep the select list so
 		// the frame size stays stable.
 		_, rightW, _ := m.paneGeometry()
-		return renderSelect(m.rows, m.cursor, rightW)
+		return padLines(renderSelect(m.rows, m.cursor, rightW))
 	default:
 		return m.detail.View()
 	}
@@ -462,15 +473,28 @@ func (m model) detailTitle() string {
 // current window size, using the exact arithmetic as onResize so View() and the
 // pre-sized widgets agree.
 func (m model) paneGeometry() (leftW, rightW, bodyH int) {
-	leftW = m.width / 4
-	if leftW < 18 {
-		leftW = 18
+	return geometryFor(m.width, m.height)
+}
+
+// geometryFor is the single source of truth for pane dimensions, shared by
+// onResize and paneGeometry so the pre-sized widgets and View() never disagree.
+// Vertical budget in a height-H terminal: header(1) + air(1) + footer(1) +
+// pane top/bottom borders(2) = 5, so the inner body height is H-5 and the frame
+// (header + air + bordered body + footer) sums to exactly H with no overflow.
+// The left pane has a 22-column minimum so labels like "Clean (select &
+// delete)" read without being clipped on an 80-column terminal.
+func geometryFor(width, height int) (leftW, rightW, bodyH int) {
+	leftW = width / 4
+	if leftW < 22 {
+		leftW = 22
 	}
-	rightW = m.width - leftW - paneBorderWidth*2 - panelGap
+	// leftW is the inner list width; the border adds 2. Subtract both panes'
+	// borders (4) plus the 1-column gap to get the detail's inner width.
+	rightW = width - leftW - paneBorderWidth*2 - panelGap
 	if rightW < 10 {
 		rightW = 10
 	}
-	bodyH = m.height - 4
+	bodyH = height - verticalChrome
 	if bodyH < 3 {
 		bodyH = 3
 	}
@@ -479,8 +503,9 @@ func (m model) paneGeometry() (leftW, rightW, bodyH int) {
 
 // renderFooter builds the key-hint bar for the current mode. normalMode shows
 // the browser + k9s shortcuts; the clean modes show their own keys so the user
-// always sees what the active mode accepts.
-func renderFooter(mode cleanMode) string {
+// always sees what the active mode accepts. width truncates the joined hints so
+// the footer never wraps onto a second row (which would break the height math).
+func renderFooter(mode cleanMode, width int) string {
 	var hints []struct{ key, desc string }
 	switch mode {
 	case selectMode:
@@ -495,15 +520,29 @@ func renderFooter(mode cleanMode) string {
 	case cleaningMode:
 		hints = []struct{ key, desc string }{{"⏎", "volver"}}
 	default:
+		// Full hint set for wide terminals.
 		hints = []struct{ key, desc string }{
-			{"↑↓", "navegar"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
+			{"↑↓", "nav"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
 			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
 			{"/", "filtrar"}, {"q", "salir"},
+		}
+		// On an 80-column (or narrower) terminal the full set overflows, so drop
+		// the self-evident navigation hints and keep the action shortcuts plus
+		// the all-important "q salir" — never truncate that away.
+		if width > 0 && width < 90 {
+			hints = []struct{ key, desc string }{
+				{"⏎", "ejecutar"}, {"a", "analyze"}, {"c", "clean"},
+				{"p", "preview"}, {"/", "filtrar"}, {"q", "salir"},
+			}
 		}
 	}
 	parts := make([]string, 0, len(hints))
 	for _, h := range hints {
 		parts = append(parts, footerKeyStyle.Render(h.key)+" "+footerDescStyle.Render(h.desc))
 	}
-	return footerStyle.Render(strings.Join(parts, sepStyle.Render(" · ")))
+	joined := footerStyle.Render(strings.Join(parts, sepStyle.Render(" · ")))
+	if width > 0 {
+		joined = truncateToWidth(joined, width)
+	}
+	return joined
 }

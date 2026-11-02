@@ -23,6 +23,7 @@ var statusCmd = &cobra.Command{
 			fmt.Printf("  %-15s %s%s\033[0m\n", a.Domain(), color, string(a.Risk()))
 		}
 		fmt.Println("─────────────────────────────")
+		core.Success("Listo (status)")
 	},
 }
 
