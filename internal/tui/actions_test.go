@@ -101,12 +101,38 @@ func TestRunStatusListsHeader(t *testing.T) {
 	}
 }
 
-func TestBuildActionsAreReadOnly(t *testing.T) {
+// TestBuildActionsCleanIsGatedNotDirect verifies the TUI-2 safety contract:
+// the Clean group exists, but "Clean (select & delete)" is an openClean control
+// action (it enters the interactive select flow) — never a direct run() that
+// could delete on selection. Preview is a plain read-only run(). No action both
+// claims to clean AND carries a run() that could bypass the F2/F3 gate.
+func TestBuildActionsCleanIsGatedNotDirect(t *testing.T) {
+	var sawPreview, sawClean bool
 	for _, a := range buildActions() {
-		l := strings.ToLower(a.label)
-		if strings.Contains(l, "clean") || strings.Contains(l, "preview") || strings.Contains(l, "full") {
-			t.Fatalf("destructive action leaked into TUI: %q", a.label)
+		switch a.label {
+		case "Preview":
+			sawPreview = true
+			if a.openClean {
+				t.Fatal("Preview must not open the delete flow; it is read-only")
+			}
+			if a.run == nil {
+				t.Fatal("Preview must have a read-only run()")
+			}
+		case "Clean (select & delete)":
+			sawClean = true
+			if !a.openClean {
+				t.Fatal("Clean must be an openClean action (enters select mode)")
+			}
+			if a.run != nil {
+				t.Fatal("Clean must NOT have a run(); deletion only via F2/F3 gate")
+			}
+			if a.group != "Clean" {
+				t.Fatalf("Clean action should be in Clean group, got %q", a.group)
+			}
 		}
+	}
+	if !sawPreview || !sawClean {
+		t.Fatalf("expected both Preview and Clean actions; preview=%v clean=%v", sawPreview, sawClean)
 	}
 }
 

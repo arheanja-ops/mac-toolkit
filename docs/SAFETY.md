@@ -41,13 +41,38 @@ El camino por defecto **nunca borra**:
      inequívoco (`si`/`sí`/`yes`/`y`). Cualquier otra entrada —incluida línea
      vacía o EOF— aborta sin borrar. (`confirmFinalDeletion` en `cmd/clean.go`)
 
-### (c) La TUI es solo lectura (fase actual)
+### (c) La TUI puede borrar solo items `safe`, tras selección + confirmación `si`
 
-La TUI (`mac-toolkit tui`) expone únicamente acciones no destructivas: Analyze,
-Status, los cuatro monitores, Last report y Quit. No hay ninguna ruta a
-`clean`/`--execute` desde la TUI. Un test lo garantiza:
-`TestBuildActionsAreReadOnly` falla si se filtra una acción
-`clean`/`preview`/`full`. (`internal/tui/actions.go`, `internal/tui/actions_test.go`)
+Desde **TUI-2**, la TUI (`mac-toolkit tui`) ya no es solo lectura: incorpora una
+ruta de limpieza interactiva, pero **sin debilitar ninguna garantía**. Reglas:
+
+1. **Solo `safe` es borrable.** Únicamente los items con `Risk == safe &&
+   SafeToDelete` son marcables. Los items `warn`/`danger` se muestran atenuados
+   con su razón, pero **no se pueden marcar**: el intento es un no-op en el
+   modelo (no solo en la UI). (`internal/tui/clean.go` — `toggleMark`,
+   `markable`)
+2. **Selección explícita + gate `si`.** El usuario marca con checkboxes y pulsa
+   `⏎`; aparece un **modal de confirmación** donde debe escribir un afirmativo
+   inequívoco (`si`/`sí`/`yes`/`y`) vía la función compartida
+   `core.IsAffirmative`. Cualquier otra entrada —incluida vacía o `Esc`— cancela
+   sin borrar. Es el mismo gate que el CLI. (`internal/tui/model.go` —
+   `onConfirmKey`; `internal/core/affirmative.go`)
+3. **Misma ruta destructiva que el CLI.** El borrado usa
+   `cleaner.NewGenericCleaner(false, true).Clean()`, que pasa por `cleaner.Delete`
+   y por tanto consulta la **blacklist** por cada item. (`internal/tui/clean.go`
+   — `runCleanCmd`)
+4. **Defensa final.** Antes de borrar, se verifica que **todos** los items
+   marcados son `safe`; si se detecta uno no-safe, se **aborta el borrado
+   completo** sin eliminar nada. (`internal/tui/clean.go` — `runCleanCmd`,
+   `markedItems`)
+5. **Audit log siempre.** Toda ejecución real escribe el audit log JSON con
+   `reporter.AuditReporter{ApprovalMode: "tui-select"}`, igual que el CLI.
+   (`internal/tui/clean.go` — `writeCleanAudit`)
+6. **`Preview` nunca borra.** La acción `Preview` de la TUI es un dry-run que
+   solo muestra el plan tabulado. (`internal/tui/actions.go` — `runPreview`)
+
+Marcar/borrar items `warn`/`danger` desde la TUI sigue siendo un *non-goal*
+(futuro TUI-2.1). En esta fase **solo lo `safe`** es borrable.
 
 ### (d) MCP: tools destructivas con `dry_run=true` por defecto
 
@@ -75,7 +100,8 @@ de aprobación y resultado por item) mediante `reporter.AuditReporter`.
 | Acción | Por defecto | Para ejecutar |
 |--------|-------------|---------------|
 | `analyze` / `status` / monitores / `doctor` | solo lectura | — (nunca borra) |
-| TUI | solo lectura | — (nunca borra) |
+| TUI — Analyze/Status/monitores/Preview/Last report | solo lectura | — (nunca borra) |
+| TUI — Clean (solo items `safe`) | preview/selección | selección explícita + confirmación `si` (blacklist + audit) |
 | `clean` | dry-run (preview) | `--execute` + aprobación + confirmación `si` |
 | MCP read-only tools | solo lectura | — |
 | MCP `mac_clean_batch` / `mac_docker_cleanup` | `dry_run=true` | `dry_run=false` explícito + confirmación del usuario |

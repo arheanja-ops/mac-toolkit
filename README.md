@@ -43,14 +43,28 @@ mac-toolkit tui      # equivalente explícito
 Al abrir entra a una pantalla de bienvenida con un resumen del sistema. El layout:
 
 - **Header en vivo** (se refresca solo): uso de disco, memoria, CPU y estado térmico.
-- **Panel izquierdo** — acciones agrupadas en Disk / Monitors / Reports.
+- **Panel izquierdo** — acciones agrupadas en Disk / Clean / Monitors / Reports.
 - **Panel derecho** — resultado de la acción seleccionada, con scroll.
 
 Navegación: `↑↓` mover · `Tab` cambiar de panel · `⏎` ejecutar · `/` filtrar ·
 `q` salir (o la acción **Salir** del menú).
 
-> La TUI es de solo lectura (analyze + monitores + status). La limpieza
-> interactiva dentro de la TUI llega en una fase siguiente (ver `docs/specs/`).
+Atajos rápidos (estilo k9s, fuera de filtro/modal): `a` Analyze · `p` Preview ·
+`c` abre el modo selección de limpieza.
+
+**Limpieza interactiva (TUI-2).** Además de analizar, la TUI puede **borrar**:
+
+- `Preview` muestra el plan de limpieza (dry-run, nunca borra).
+- `Clean (select & delete)` abre un modo selección con checkboxes. **Solo los
+  items `safe` son marcables**; `warn`/`danger` se muestran atenuados con su
+  razón y no se pueden marcar. Teclas: `espacio` marca · `a` todos los seguros ·
+  `n` ninguno · `⏎` continuar · `Esc` cancelar.
+- Al continuar aparece un **modal de confirmación**: debes escribir `si` y pulsar
+  `⏎` para borrar. Cualquier otra cosa cancela. El borrado pasa por la misma
+  blacklist y escribe el mismo audit log que el CLI.
+
+> Garantía: la TUI solo borra items `safe`, tras selección explícita y
+> confirmación `si`. Detalles en [`docs/SAFETY.md`](docs/SAFETY.md).
 
 ```bash
 mac-toolkit menu     # menú lineal (promptui) — fallback si no hay TUI
