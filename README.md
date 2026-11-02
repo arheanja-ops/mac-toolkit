@@ -50,11 +50,33 @@ Navegación: `↑↓` mover · `Tab` cambiar de panel · `⏎` ejecutar · `/` f
 `q` salir (o la acción **Salir** del menú).
 
 > La TUI es de solo lectura (analyze + monitores + status). La limpieza
-> interactiva y el diagnóstico con IA llegan en fases siguientes (ver `docs/specs/`).
+> interactiva dentro de la TUI llega en una fase siguiente (ver `docs/specs/`).
 
 ```bash
 mac-toolkit menu     # menú lineal (promptui) — fallback si no hay TUI
 ```
+
+### Diagnóstico con IA — `doctor`
+
+```bash
+mac-toolkit doctor            # plan priorizado (performance / quick wins / revisión)
+mac-toolkit doctor --no-ai    # fuerza el motor heurístico (sin IA)
+mac-toolkit doctor --json     # salida estructurada para scripting
+```
+
+`doctor` es **solo lectura**: orquesta análisis + monitores y produce un plan
+priorizado, nunca borra ni ejecuta acciones. Usa Groq si hay `GROQ_API_KEY`; si
+no, cae a un motor heurístico determinista (mismo resultado, sin depender de
+internet). Configuración por entorno:
+
+| Variable | Default | Propósito |
+|----------|---------|-----------|
+| `GROQ_API_KEY` | — (vacío → heurístico) | Autenticación Groq |
+| `GROQ_MODEL` | `openai/gpt-oss-20b` | Modelo de inferencia |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Endpoint OpenAI-compatible |
+
+> Privacidad: al usar IA solo se envían **agregados** (tamaños por dominio,
+> métricas de sistema) — nunca rutas, nombres de archivo ni PIDs.
 
 ### Comandos directos
 
@@ -63,8 +85,11 @@ mac-toolkit menu     # menú lineal (promptui) — fallback si no hay TUI
 mac-toolkit analyze                          # Análisis completo
 mac-toolkit analyze --domain dev_caches      # Solo un dominio
 mac-toolkit analyze --save                   # Guardar reporte MD + JSON
-mac-toolkit clean --execute --mode checklist # Limpieza con checklist
+mac-toolkit clean --execute --mode checklist # Limpieza con checklist (dry-run por defecto)
 mac-toolkit full --execute                   # Analizar + guardar + limpiar
+
+# Diagnóstico
+mac-toolkit doctor       # Plan de salud priorizado (solo lectura)
 
 # Monitors
 mac-toolkit battery      # Salud, ciclos, temperatura
@@ -273,6 +298,6 @@ go test ./... -v -count=1
 
 ---
 
-*Mac Toolkit v1.3 — Go CLI + TUI (k9s-style) + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
+*Mac Toolkit v1.5 — Go CLI + TUI (k9s-style) + `doctor` (IA/Groq) + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
 
 Ver [TOOLKIT_GUIDE.md](TOOLKIT_GUIDE.md) para documentación completa: configuración MCP en Kiro Desktop/CLI, herramientas disponibles, seguridad, skills, y guía de extensibilidad.
