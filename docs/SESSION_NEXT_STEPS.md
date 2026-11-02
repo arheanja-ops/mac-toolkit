@@ -1,96 +1,74 @@
 # 📍 DÓNDE VAMOS — Punto de retomada
 
-**Última actualización:** 2026-09-09
-**Repo:** `arheanja-ops/mac-toolkit` · rama base `main`
+**Última actualización:** 2026-11-01
+**Repo:** `arheanja-ops/mac-toolkit` · rama base `main` · último release **v1.5.0**
 
 Lee este archivo al reiniciar para saber exactamente en qué punto quedamos.
 
 ---
 
-## ✅ Hecho y publicado
+## ✅ Entregado y en producción
 
-- **`v1.2.0` — UX de la CLI** (PR #1, mergeado y released):
-  - Banner ASCII de inicio con versión + barra de uso de disco en vivo.
-  - Menú menos saturado: secciones (Disk/Monitors/Reports) + acciones con
-    descripción alineada.
-  - Presentación de datos mejorada: dominios/items ordenados por tamaño, barras de
-    proporción, top-8 por dominio con resumen del resto, checkmarks de color.
-  - Instalado en local vía `go install ...@v1.2.0` (banner funcionando).
-    Nota: `--version` muestra `dev` con `go install` — los ldflags de versión solo
-    los inyecta GoReleaser (usar el tar.gz del release si se necesita la versión real).
+| Versión | Qué entregó |
+|---------|-------------|
+| `v1.2.0` | UX: banner, menú menos saturado, mejor presentación de datos |
+| `v1.3.0` | TUI estilo k9s (2 paneles + header en vivo) — Fase TUI-1 |
+| `v1.3.1` | TUI: pantalla de bienvenida + acción Salir + fix del total |
+| `v1.3.2` | Fix del timeout del analyzer `repos` (escaneo paralelo acotado) |
+| `v1.4.0` | **Comando `doctor`** con IA (Groq) + fallback heurístico (Fase 1 IA) |
+| `v1.5.0` | Rediseño profesional del TUI + gate de confirmación final en `clean` + `docs/SAFETY.md` |
 
-- **Proceso de release documentado:** `docs/RELEASE_WORKFLOW.md`
-  (flujo PR → merge → tag `vX.Y.Z` → GoReleaser → actualización local).
-
----
-
-## 📝 Diseñado, SIN implementar, SIN commitear
-
-Specs de la integración de IA con Groq (creadas en el working tree, aún no en git):
-
-- `docs/specs/2026-09-09-ai-roadmap.md` — roadmap de 4 fases.
-- `docs/specs/2026-09-09-ai-doctor.md` — spec detallada de la Fase 1.
-- `docs/SESSION_NEXT_STEPS.md` — este archivo.
-
-**Estado git:** estos 3 archivos están como *untracked*. Aún no hay PR de las specs.
+Binario local actualizado a **v1.5.0** vía `go install`. (`--version` muestra `dev`
+porque los ldflags solo los inyecta GoReleaser; el código SÍ es v1.5.0.)
 
 ---
 
-## 🎯 PRÓXIMO PASO al retomar
+## 🔒 Garantías de seguridad (ver docs/SAFETY.md)
 
-**Decisión pendiente del usuario:** ¿subimos las specs por PR y/o arrancamos la
-implementación de la Fase 1?
+- `doctor`, `analyze`, `status` y monitores: **solo lectura**.
+- `clean`: dry-run por defecto → `--execute` → aprobación por modo → **confirmación
+  final explícita** (escribir "si"); ante vacío/EOF, NO borra.
+- TUI: solo lectura, garantizado por test (`TestBuildActionsAreReadOnly`).
+- MCP: tools destructivas `dry_run=true` por defecto.
+- Blacklist de rutas del sistema + audit log de toda eliminación.
 
-### Opción A — Subir las specs primero (recomendado)
-PR pequeño solo con la documentación de diseño, siguiendo `RELEASE_WORKFLOW.md`:
-```bash
-git switch main && git pull --ff-only origin main
-git switch -c docs/ai-roadmap-specs
-git add docs/specs/2026-09-09-ai-roadmap.md docs/specs/2026-09-09-ai-doctor.md docs/SESSION_NEXT_STEPS.md
-git commit -m "docs: roadmap de IA (Groq) y spec de la fase 1 (doctor)"
-git push -u origin docs/ai-roadmap-specs
-gh pr create --base main --title "docs: roadmap de IA y spec del comando doctor" --body "..."
-# CI verde → gh pr merge --squash --delete-branch
+---
+
+## 🎯 PRÓXIMO PASO — roadmap pendiente
+
+Specs en `docs/specs/`. Por prioridad sugerida:
+
+1. **TUI-2 — Clean interactivo dentro del TUI**
+   Checkboxes por item, color por riesgo, aprobación en pantalla — reutilizando
+   los gates de seguridad de `cmd/clean.go` (dry-run + confirmación final).
+2. **TUI-3 — Panel Doctor en el TUI**
+   Enchufar el motor del `doctor` (ya existe en `internal/ai/`) como panel.
+3. **Fase 2 IA — `doctor` agente (function-calling)**
+   El modelo decide qué tools MCP invocar en loop. Depende de Fase 1 (hecha).
+4. **Fase 3 IA — `optimize --safe` / `--performance`**
+   Ejecutar quick wins seguros con una aprobación. Depende de Fase 1.
+5. **Fase 4 (exploratoria)** — monitoreo recurrente en background (sin spec aún).
+
+---
+
+## ⚠️ Higiene pendiente del working tree
+
+Hay cambios AJENOS (del IDE/Kiro, no nuestros) sin commitear, que hemos mantenido
+INTACTOS y FUERA de todos nuestros PRs:
+
 ```
-(Solo docs → no requiere nuevo tag/release.)
+ M .kiro/agents/mac-ops.json
+ M .kiro/agents/mac-toolkit-dev.json
+```
 
-### Opción B — Implementar la Fase 1 (`doctor`)
-Arrancar el código según `docs/specs/2026-09-09-ai-doctor.md`. Bump esperado
-`v1.3.0` (MINOR). Componentes a construir:
-- `internal/ai/` — cliente Groq (net/http stdlib) + motor heurístico + AISnapshot.
-- `cmd/doctor.go` — comando `toolkit doctor` (+ `--no-ai`, `--json`).
-- Tool MCP `mac_doctor` en `cmd/mcp.go`.
-- Tests: heurístico (tabla), cliente (httptest mock), redacción de key, privacidad.
+Son reformateo JSON + reglas de permisos de los agentes. Decidir qué hacer con
+ellos (commit aparte propio del proyecto, o descartar) antes de que estorben.
+NUNCA mezclarlos con el trabajo de features.
 
 ---
 
-## 🔑 Defaults acordados para la Fase 1
-
-- **Config por entorno:** `GROQ_API_KEY` (vacío → modo heurístico),
-  `GROQ_MODEL=openai/gpt-oss-20b`, `GROQ_BASE_URL=https://api.groq.com/openai/v1`.
-- **Modelo:** `openai/gpt-oss-20b` (ojo: `llama-3.1-8b-instant` y
-  `llama-3.3-70b-versatile` fueron deprecados por Groq en jun-2026).
-- **Privacidad:** enviar solo agregados a Groq — sin rutas, sin nombres de archivo,
-  sin PIDs.
-- **Fallback:** sin API key → motor heurístico determinista, la CLI nunca depende
-  de IA ni de internet.
-- **Seguridad:** `doctor` es solo lectura; las acciones destructivas siguen pasando
-  por el flujo de aprobación/blacklist existente.
-
----
-
-## 🐛 Bug conocido pendiente (detectado en output real)
-
-El dominio `disk` (uso total del volumen, ~346 GB) se suma al "Total" del resumen
-de `analyze`, produciendo un total engañoso (443 GB) y barras de proporción
-inútiles. La spec de `doctor` ya lo corrige a nivel de diagnóstico (lo trata como
-"contexto", no como recuperable), pero **el reporter de `analyze` sigue con el bug**.
-Candidato a fix aparte (`v1.2.1` PATCH) si se quiere corregir antes de la Fase 1.
-
----
-
-## 📋 Flujo de trabajo establecido (recordatorio)
+## 📋 Flujo de trabajo (recordatorio)
 
 Todo cambio: rama → PR → CI verde → merge squash a `main` → (si aplica) tag
-`vX.Y.Z` → GoReleaser → actualizar local. Nunca commitear directo a `main`.
-Detalle completo en `docs/RELEASE_WORKFLOW.md`.
+`vX.Y.Z` → GoReleaser → `go install @vX.Y.Z`. Nunca commitear directo a `main`.
+Siempre `git add` con rutas explícitas. Detalle: `docs/RELEASE_WORKFLOW.md`.
