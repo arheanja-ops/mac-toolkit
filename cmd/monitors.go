@@ -14,7 +14,9 @@ var batteryCmd = &cobra.Command{
 		m := &monitor.BatteryMonitor{}
 		if err := m.Display(); err != nil {
 			core.Error("Battery: %v", err)
+			return
 		}
+		core.Success("Listo (battery)")
 	},
 }
 
@@ -25,7 +27,9 @@ var systemCmd = &cobra.Command{
 		m := &monitor.SystemMonitor{}
 		if err := m.Display(); err != nil {
 			core.Error("System: %v", err)
+			return
 		}
+		core.Success("Listo (system)")
 	},
 }
 
@@ -36,7 +40,9 @@ var processesCmd = &cobra.Command{
 		m := &monitor.ProcessMonitor{}
 		if err := m.Display(); err != nil {
 			core.Error("Processes: %v", err)
+			return
 		}
+		core.Success("Listo (processes)")
 	},
 }
 
@@ -47,7 +53,9 @@ var networkCmd = &cobra.Command{
 		m := &monitor.NetworkMonitor{}
 		if err := m.Display(); err != nil {
 			core.Error("Network: %v", err)
+			return
 		}
+		core.Success("Listo (network)")
 	},
 }
 

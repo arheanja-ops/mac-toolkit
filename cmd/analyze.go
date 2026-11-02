@@ -25,6 +25,9 @@ var analyzeCmd = &cobra.Command{
 		if analyzeSave {
 			saveReports(results)
 		}
+		// Explicit end-of-run signal: the human report goes to stderr, which can
+		// read as "nothing happened" on success. A final ✓ confirms completion.
+		core.Success("Listo (analyze)")
 	},
 }
 

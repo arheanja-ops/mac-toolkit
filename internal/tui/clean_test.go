@@ -422,7 +422,7 @@ func TestPreviewNeverDeletes(t *testing.T) {
 	withSampleAnalysis(func() {
 		rec := &recordingCleaner{}
 		withInjectedCleaner(t, rec, func() {
-			out, err := runPreview()
+			out, err := runPreview(80)
 			if err != nil {
 				t.Fatalf("preview error: %v", err)
 			}

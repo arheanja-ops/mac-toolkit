@@ -92,13 +92,22 @@ func renderHeader(version string, disk core.DiskSnapshot, s headerStats, width i
 		// On narrow terminals collapse to disk + memory only (F2 constraint).
 		if width >= 80 {
 			parts = append(parts, fmt.Sprintf("%s %d%%", hdrLabelStyle.Render("CPU"), s.cpuUsedPct))
-			if s.thermal != "" {
+			// Thermal is the lowest-priority field; only append it when the
+			// terminal is wider than 80 so the full header never overflows the
+			// exact 80-column boundary (where CPU already fills the row).
+			if width > 80 && s.thermal != "" {
 				parts = append(parts, renderThermal(s.thermal))
 			}
 		}
 	}
 
-	return strings.Join(parts, sep)
+	out := strings.Join(parts, sep)
+	// Final safety net: never let the header exceed the terminal width, even if
+	// an unusually long disk/version string would otherwise push it over.
+	if width > 0 {
+		out = truncateToWidth(out, width)
+	}
+	return out
 }
 
 // renderThermal colors the thermal field: any non-normal state (Warning,

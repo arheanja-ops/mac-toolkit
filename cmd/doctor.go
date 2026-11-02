@@ -33,6 +33,9 @@ deterministic heuristic engine. It is strictly read-only — it never deletes.`,
 			return
 		}
 		renderDiagnosis(diag)
+		// Confirm completion of the read-only diagnosis (human path only; the
+		// JSON path stays pristine for piping).
+		core.Success("Listo (doctor)")
 	},
 }
 

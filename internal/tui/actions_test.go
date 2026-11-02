@@ -14,7 +14,7 @@ func TestFormatSnapshotSortedAndSafe(t *testing.T) {
 		"cpu_percent":    34.0,
 		"memory_percent": 71.0,
 		"thermal":        "Normal",
-	})
+	}, 80)
 	if !strings.Contains(out, "system monitor") {
 		t.Fatalf("missing header, got: %q", out)
 	}
@@ -28,7 +28,7 @@ func TestFormatSnapshotSortedAndSafe(t *testing.T) {
 }
 
 func TestFormatSnapshotEmpty(t *testing.T) {
-	out := formatSnapshot("system", map[string]any{})
+	out := formatSnapshot("system", map[string]any{}, 80)
 	if !strings.Contains(out, "no data available") {
 		t.Fatalf("expected empty marker, got: %q", out)
 	}
@@ -36,7 +36,7 @@ func TestFormatSnapshotEmpty(t *testing.T) {
 
 func TestMonitorRunnerUsesSnapshot(t *testing.T) {
 	run := monitorRunner(fakeMonitor{name: "fake", data: map[string]any{"k": "v"}})
-	out, err := run()
+	out, err := run(80)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestMonitorRunnerUsesSnapshot(t *testing.T) {
 
 func TestMonitorRunnerPropagatesError(t *testing.T) {
 	run := monitorRunner(fakeMonitor{name: "fake", err: errBoom})
-	if _, err := run(); err == nil {
+	if _, err := run(80); err == nil {
 		t.Fatal("expected error from snapshot")
 	}
 }
@@ -73,7 +73,7 @@ func TestRunLastReportReadsNewest(t *testing.T) {
 	reportsDir = dir
 	defer func() { reportsDir = orig }()
 
-	out, err := runLastReport()
+	out, err := runLastReport(80)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,13 +86,13 @@ func TestRunLastReportNoDir(t *testing.T) {
 	orig := reportsDir
 	reportsDir = filepath.Join(t.TempDir(), "does-not-exist")
 	defer func() { reportsDir = orig }()
-	if _, err := runLastReport(); err == nil {
+	if _, err := runLastReport(80); err == nil {
 		t.Fatal("expected error when reports dir is missing")
 	}
 }
 
 func TestRunStatusListsHeader(t *testing.T) {
-	out, err := runStatus()
+	out, err := runStatus(80)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestBuildActionsCleanIsGatedNotDirect(t *testing.T) {
 			if a.run == nil {
 				t.Fatal("Preview must have a read-only run()")
 			}
-		case "Clean (select & delete)":
+		case "Select & clean":
 			sawClean = true
 			if !a.openClean {
 				t.Fatal("Clean must be an openClean action (enters select mode)")
@@ -161,7 +161,7 @@ func TestFormatAnalysisExcludesDiskAndErrors(t *testing.T) {
 		{Domain: "docker", TotalSize: 8 * 1024 * 1024 * 1024, Severity: core.SeverityHigh},
 		{Domain: "ollama", Error: "read failed"},
 	}
-	out := formatAnalysis(results)
+	out := formatAnalysis(results, 80)
 
 	// Reclaimable = dev_caches + docker = 10 GB. Disk (365 GB) and the errored
 	// ollama domain must be excluded.

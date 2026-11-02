@@ -231,13 +231,16 @@ var (
 )
 
 // renderSelect draws the interactive checkbox list (spec F2 mockup). cursor is
-// the highlighted row. width bounds the layout; height is unused here because
-// the caller frames it inside a pane border.
+// the highlighted row. width is the pane's inner width; every line is bounded to
+// the usable width (minus the 1-column content pad the caller adds) so nothing
+// overflows the pane border. height is unused here because the caller frames it
+// inside a pane border.
 func renderSelect(rows []cleanRow, cursor, width int) string {
+	w := usableWidth(width)
 	var b strings.Builder
-	title := " CLEAN — selecciona qué borrar (espacio marca · a todos los seguros · ⏎ continuar)"
-	b.WriteString(tableHeaderStyle.Render(title) + "\n")
-	b.WriteString(ruleStyle.Render(strings.Repeat("─", clampWidth(width))) + "\n")
+	title := "CLEAN — espacio marca · a todos · ⏎ continuar"
+	b.WriteString(tableHeaderStyle.Render(truncateToWidth(title, w)) + "\n")
+	b.WriteString(rule(w) + "\n")
 
 	if !hasMarkable(rows) {
 		b.WriteString("\n  " + cleanDimRow.Render("Nada seguro para limpiar.") + "\n")
@@ -247,22 +250,25 @@ func renderSelect(rows []cleanRow, cursor, width int) string {
 	}
 
 	for i, r := range rows {
-		b.WriteString(renderCleanRow(r, i == cursor) + "\n")
+		b.WriteString(renderCleanRow(r, i == cursor, w) + "\n")
 	}
 
 	bytes, count := markedTotals(rows)
-	b.WriteString(ruleStyle.Render(strings.Repeat("─", clampWidth(width))) + "\n")
-	foot := fmt.Sprintf("  Marcado: %s en %d grupos seguros", core.FormatBytes(bytes), count)
+	b.WriteString(rule(w) + "\n")
+	foot := truncateToWidth(
+		fmt.Sprintf("Marcado: %s en %d grupos seguros", core.FormatBytes(bytes), count), w)
+	b.WriteString(foot + "\n")
 	hint := footerKeyStyle.Render("[⏎]") + " " + footerDescStyle.Render("continuar") + "  " +
 		footerKeyStyle.Render("[Esc]") + " " + footerDescStyle.Render("cancelar")
-	b.WriteString(foot + "        " + hint + "\n")
+	b.WriteString(hint + "\n")
 	return b.String()
 }
 
 // renderCleanRow renders one checkbox line: "[x] safe  5.6 GB  domain · label".
-// Unmarkable rows are dimmed and annotated so the user sees why they cannot be
-// selected (spec F2).
-func renderCleanRow(r cleanRow, cursor bool) string {
+// The domain·label tail is truncated to the width left after the fixed
+// checkbox/risk/size columns so a long path never wraps. Unmarkable rows are
+// dimmed and annotated so the user sees why they cannot be selected (spec F2).
+func renderCleanRow(r cleanRow, cursor bool, w int) string {
 	box := "[ ]"
 	if r.marked {
 		box = cleanCheckStyle.Render("[x]")
@@ -270,16 +276,23 @@ func renderCleanRow(r cleanRow, cursor bool) string {
 	risk := lipgloss.NewStyle().Foreground(riskColor(r.item.Risk)).
 		Render(fmt.Sprintf("%-6s", string(r.item.Risk)))
 	size := fmt.Sprintf("%9s", core.FormatBytes(r.item.SizeBytes))
-	desc := fmt.Sprintf("%s · %s", r.item.Domain, r.item.Label)
+	// Fixed prefix width: caret(2) + box(3) + " " + risk(6) + " " + size(9) + "  ".
+	descW := w - (2 + 3 + 1 + 6 + 1 + 9 + 2)
+	if descW < 4 {
+		descW = 4
+	}
 
+	desc := truncateToWidth(fmt.Sprintf("%s · %s", r.item.Domain, r.item.Label), descW)
 	line := fmt.Sprintf("%s %s %s  %s", box, risk, size, desc)
 	if !r.markable {
 		reason := r.item.Reason
 		if reason == "" {
 			reason = "no auto-marcable"
 		}
-		line = cleanDimRow.Render(fmt.Sprintf("%s %s %s  %s (%s)",
-			"[ ]", fmt.Sprintf("%-6s", string(r.item.Risk)), size, desc, reason))
+		tail := truncateToWidth(fmt.Sprintf("%s (%s)",
+			fmt.Sprintf("%s · %s", r.item.Domain, r.item.Label), reason), descW)
+		line = cleanDimRow.Render(fmt.Sprintf("%s %s %s  %s",
+			"[ ]", fmt.Sprintf("%-6s", string(r.item.Risk)), size, tail))
 	}
 
 	caret := "  "
@@ -328,15 +341,4 @@ func renderCleaning(spin string, result *cleanSummary) string {
 	}
 	b.WriteString("\n\n  " + footerDescStyle.Render("Pulsa cualquier tecla para volver.") + "\n")
 	return b.String()
-}
-
-// clampWidth keeps separators from overflowing very narrow panes.
-func clampWidth(w int) int {
-	if w < 10 {
-		return 10
-	}
-	if w > 76 {
-		return 76
-	}
-	return w
 }
