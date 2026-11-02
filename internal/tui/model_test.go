@@ -187,3 +187,30 @@ func TestWelcomeContentIsInitialDetail(t *testing.T) {
 		t.Fatalf("expected welcome dashboard as initial detail, got: %q", view)
 	}
 }
+
+// TestViewRendersWithoutPanic is a smoke/snapshot test: since CI has no TTY, we
+// drive View() directly and assert it produces a non-empty frame containing the
+// embedded pane titles and the key-hint footer. This guards the redesign's
+// lipgloss styling from panicking and from silently dropping the panel chrome.
+func TestViewRendersWithoutPanic(t *testing.T) {
+	m := sizedModel()
+	view := m.View()
+	if view == "" || view == "Loading…" {
+		t.Fatalf("View() should render a full frame once sized, got: %q", view)
+	}
+	for _, want := range []string{"ACTIONS", "DETAILS", "ejecutar", "salir"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("rendered frame missing %q:\n%s", want, view)
+		}
+	}
+}
+
+// TestViewBeforeReadyShowsLoading verifies the pre-size guard: before the first
+// WindowSizeMsg the viewport is not initialized, so View() must return the
+// loading placeholder instead of touching an unready viewport.
+func TestViewBeforeReadyShowsLoading(t *testing.T) {
+	m := newModel("v-test")
+	if got := m.View(); got != "Loading…" {
+		t.Fatalf("expected loading placeholder before ready, got: %q", got)
+	}
+}

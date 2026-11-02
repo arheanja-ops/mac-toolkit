@@ -70,9 +70,11 @@ func headerTick() tea.Cmd {
 
 // renderHeader builds the top status line. It always shows the version; each
 // remaining field is appended only when available, so a failed disk or system
-// read never breaks the layout.
+// read never breaks the layout. Fields are separated by a faint " · " so the
+// metrics read as discrete, aligned columns rather than one run-on string.
 func renderHeader(version string, disk core.DiskSnapshot, s headerStats, width int) string {
-	parts := []string{"mac-toolkit " + version}
+	sep := sepStyle.Render(" · ")
+	parts := []string{bannerStyle.Render("mac-toolkit") + " " + version}
 
 	if disk.OK {
 		barWidth := 7
@@ -80,20 +82,33 @@ func renderHeader(version string, disk core.DiskSnapshot, s headerStats, width i
 			barWidth = 5
 		}
 		bar := core.ProgressBar(disk.PctUsed, barWidth)
-		parts = append(parts, fmt.Sprintf("Disk %s %d%% %s free",
-			bar, disk.PctUsed, core.FormatBytes(disk.AvailBytes)))
+		parts = append(parts, fmt.Sprintf("%s %s %d%% %s free",
+			hdrLabelStyle.Render("Disk"), bar, disk.PctUsed,
+			core.FormatBytes(disk.AvailBytes)))
 	}
 
 	if s.ok {
-		parts = append(parts, fmt.Sprintf("Mem %d%%", s.memUsedPct))
+		parts = append(parts, fmt.Sprintf("%s %d%%", hdrLabelStyle.Render("Mem"), s.memUsedPct))
 		// On narrow terminals collapse to disk + memory only (F2 constraint).
 		if width >= 80 {
-			parts = append(parts, fmt.Sprintf("CPU %d%%", s.cpuUsedPct))
+			parts = append(parts, fmt.Sprintf("%s %d%%", hdrLabelStyle.Render("CPU"), s.cpuUsedPct))
 			if s.thermal != "" {
-				parts = append(parts, "🌡 "+s.thermal)
+				parts = append(parts, renderThermal(s.thermal))
 			}
 		}
 	}
 
-	return strings.Join(parts, "  ·  ")
+	return strings.Join(parts, sep)
+}
+
+// renderThermal colors the thermal field: any non-normal state (Warning,
+// critical, etc.) is shown in the alert style so it draws the eye; a healthy
+// "Normal"/"Nominal" reading stays muted like the other labels.
+func renderThermal(state string) string {
+	glyph := "🌡 " + state
+	lower := strings.ToLower(state)
+	if lower == "normal" || lower == "nominal" || lower == "ok" {
+		return hdrLabelStyle.Render(glyph)
+	}
+	return thermalAlertStyle.Render(glyph)
 }
