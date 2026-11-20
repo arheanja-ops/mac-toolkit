@@ -532,7 +532,7 @@ type DoctorInput struct {
 // snapshot builder and orchestrator as the CLI, so behavior is identical. It is
 // strictly read-only and safe to call.
 func handleDoctor(_ context.Context, _ *mcp.CallToolRequest, input DoctorInput) (*mcp.CallToolResult, ai.Diagnosis, error) {
-	snap := buildDoctorSnapshot()
+	snap := ai.BuildDoctorSnapshot(func() []core.AnalysisResult { return runAnalysisMCP("") })
 	diag := ai.Diagnose(snap, ai.Options{NoAI: input.NoAI})
 	return nil, diag, nil
 }

@@ -50,6 +50,7 @@ Navegación: `↑↓` mover · `Tab` cambiar de panel · `⏎` ejecutar · `/` f
 `q` salir (o la acción **Salir** del menú).
 
 Atajos rápidos (estilo k9s, fuera de filtro/modal): `a` Analyze · `p` Preview ·
+`d` Doctor (diagnóstico priorizado, solo lectura; `r` lo refresca) ·
 `c` abre el modo selección de limpieza.
 
 **Limpieza interactiva (TUI-2).** Además de analizar, la TUI puede **borrar**:

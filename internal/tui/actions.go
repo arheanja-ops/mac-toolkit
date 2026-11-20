@@ -32,13 +32,14 @@ type actionItem struct {
 }
 
 // buildActions returns the ordered, grouped action set. Phase TUI-1 actions
-// (Analyze, Status, monitors, Last report, Quit) stay read-only. Phase TUI-2
+// (Analyze, Status, Doctor, monitors, Last report, Quit) stay read-only. Phase TUI-2
 // adds a Clean group: Preview (dry-run, never deletes) and Clean (opens the
 // interactive select-and-delete flow, which still requires the F3 "si" gate).
 func buildActions() []actionItem {
 	return []actionItem{
 		{label: "Analyze", group: "Disk", run: runAnalyze},
 		{label: "Status", group: "Disk", run: runStatus},
+		{label: doctorLabel, group: "Disk", run: runDoctor},
 		{label: "Preview", group: "Clean", run: runPreview},
 		{label: "Select & clean", group: "Clean", openClean: true},
 		{label: "Battery", group: "Monitors", run: monitorRunner(&monitor.BatteryMonitor{})},

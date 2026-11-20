@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- TUI: panel **Doctor** (acción en el grupo Disk + atajo `d`, `r` para refrescar):
+  PERFORMANCE / QUICK WINS / REQUIERE REVISIÓN, contexto de disco y motor
+  (groq/heurístico). Solo lectura, responsive hasta 80x24.
+
+### Changed
+- El armado del snapshot de `doctor` pasó a `internal/ai/collect.go` y lo comparten
+  el CLI, la tool MCP `mac_doctor` y la TUI (sin cambios de salida).
+
 ## [1.1.0] - 2026-09-07
 
 ### Added

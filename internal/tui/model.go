@@ -58,9 +58,12 @@ type model struct {
 	disk    core.DiskSnapshot
 	hdr     headerStats
 	running bool
-	width   int
-	height  int
-	ready   bool
+	// doctorOpen is true while the detail pane shows the Doctor panel, so 'r'
+	// refreshes it (and only it) without a second, dedicated action.
+	doctorOpen bool
+	width      int
+	height     int
+	ready      bool
 
 	// TUI-2 clean flow state (spec Data model). mode is normalMode unless the
 	// user is in the interactive select/confirm/cleaning flow.
@@ -225,6 +228,12 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.runAction(runPreview)
 	case "c":
 		return m.enterSelect(), nil
+	case "d":
+		return m.runDoctorAction()
+	case "r":
+		if m.doctorOpen {
+			return m.runDoctorAction()
+		}
 	}
 
 	return m.forwardToFocused(msg)
@@ -259,6 +268,9 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 	if it.action.run == nil {
 		return m, nil
 	}
+	if it.action.label == doctorLabel {
+		return m.runDoctorAction()
+	}
 	return m.runAction(it.action.run)
 }
 
@@ -266,6 +278,23 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 // and the a/p shortcuts). It never deletes — run() only produces viewport text.
 // The current right-pane width is captured so the action renders responsively.
 func (m model) runAction(run func(width int) (string, error)) (tea.Model, tea.Cmd) {
+	m.doctorOpen = false
+	return m.launch(run)
+}
+
+// runDoctorAction starts the read-only Doctor. Every call re-analyzes (no
+// cache): 'd' and 'r' are both a fresh run. A run already in flight is not
+// duplicated — the key is ignored until the spinner stops.
+func (m model) runDoctorAction() (tea.Model, tea.Cmd) {
+	if m.running {
+		return m, nil
+	}
+	m.doctorOpen = true
+	return m.launch(runDoctor)
+}
+
+// launch is the shared off-loop runner behind runAction and runDoctorAction.
+func (m model) launch(run func(width int) (string, error)) (tea.Model, tea.Cmd) {
 	m.running = true
 	_, rightW, _ := m.paneGeometry()
 	return m, tea.Batch(m.spinner.Tick, func() tea.Msg {
@@ -524,7 +553,7 @@ func renderFooter(mode cleanMode, width int) string {
 		hints = []struct{ key, desc string }{
 			{"↑↓", "nav"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
 			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
-			{"/", "filtrar"}, {"q", "salir"},
+			{"d", "doctor"}, {"/", "filtrar"}, {"q", "salir"},
 		}
 		// On an 80-column (or narrower) terminal the full set overflows, so drop
 		// the self-evident navigation hints and keep the action shortcuts plus
@@ -532,7 +561,7 @@ func renderFooter(mode cleanMode, width int) string {
 		if width > 0 && width < 90 {
 			hints = []struct{ key, desc string }{
 				{"⏎", "ejecutar"}, {"a", "analyze"}, {"c", "clean"},
-				{"p", "preview"}, {"/", "filtrar"}, {"q", "salir"},
+				{"p", "preview"}, {"d", "doctor"}, {"/", "filtrar"}, {"q", "salir"},
 			}
 		}
 	}
