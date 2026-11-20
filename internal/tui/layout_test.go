@@ -36,7 +36,7 @@ func TestViewFitsEightyByTwentyFour(t *testing.T) {
 		// Exercise the welcome screen and then a ran action (the analysis table
 		// is the widest content) so both initial and post-action frames are
 		// checked at 80 cols.
-		for _, frame := range []string{m.View(), ranAnalysisView(t, m)} {
+		for _, frame := range []string{m.View(), ranAnalysisView(t, m), ranDoctorView(t, m)} {
 			maxW, lines := widestLine(frame)
 			if maxW > 80 {
 				t.Fatalf("frame line exceeds 80 cols (got %d):\n%s", maxW, frame)
@@ -60,6 +60,23 @@ func ranAnalysisView(t *testing.T, m model) string {
 	}
 	nm, _ := m.Update(actionResultMsg{out: out})
 	return nm.(model).View()
+}
+
+// ranDoctorView loads the Doctor panel (fixed Diagnosis) into the viewport and
+// returns the full frame, so the 80x24 guard also covers the Doctor layout.
+func ranDoctorView(t *testing.T, m model) string {
+	t.Helper()
+	var frame string
+	withDoctor(func() {
+		_, rightW, _ := m.paneGeometry()
+		out, err := runDoctor(rightW)
+		if err != nil {
+			t.Fatalf("runDoctor: %v", err)
+		}
+		nm, _ := m.Update(actionResultMsg{out: out})
+		frame = nm.(model).View()
+	})
+	return frame
 }
 
 // TestFormatAnalysisRespectsNarrowWidth verifies the responsive table never

@@ -74,6 +74,12 @@ ruta de limpieza interactiva, pero **sin debilitar ninguna garantía**. Reglas:
 Marcar/borrar items `warn`/`danger` desde la TUI sigue siendo un *non-goal*
 (futuro TUI-2.1). En esta fase **solo lo `safe`** es borrable.
 
+**El panel Doctor de la TUI (TUI-3, atajos `d`/`r`) es solo lectura.** No borra,
+no ejecuta comandos, no escribe audit y no cambia el modo; su pista "presiona c
+para limpiar" solo abre la selección de TUI-2 con su gate `si`, blacklist y audit
+log intactos. No muestra rutas, nombres de archivo ni PIDs: solo agregados del
+`Diagnosis`. (`internal/tui/doctor.go` — `runDoctor`, `formatDiagnosis`)
+
 ### (d) MCP: tools destructivas con `dry_run=true` por defecto
 
 Las tools de solo lectura (`mac_analyze`, `mac_system`, `mac_battery`, etc.)

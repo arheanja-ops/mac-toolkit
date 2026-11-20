@@ -7,7 +7,6 @@ import (
 
 	"github.com/arheanja-ops/mac-toolkit/internal/ai"
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
-	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
 
 	"github.com/spf13/cobra"
 )
@@ -25,7 +24,7 @@ aggregate, and turns it into a prioritized diagnosis (performance, quick wins,
 items needing review). It uses Groq when GROQ_API_KEY is set, otherwise a
 deterministic heuristic engine. It is strictly read-only — it never deletes.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		snap := buildDoctorSnapshot()
+		snap := ai.BuildDoctorSnapshot(func() []core.AnalysisResult { return runAnalysis("") })
 		diag := ai.Diagnose(snap, ai.Options{NoAI: doctorNoAI})
 
 		if doctorJSON {
@@ -45,54 +44,6 @@ func init() {
 	rootCmd.AddCommand(doctorCmd)
 }
 
-// buildDoctorSnapshot gathers metrics by reusing the existing analysis,
-// monitors and disk reader — it never reimplements collection logic.
-func buildDoctorSnapshot() ai.AISnapshot {
-	results := runAnalysis("")
-
-	sys := systemMetrics()
-	disk := core.ReadDiskSnapshot()
-
-	return ai.BuildSnapshot(results, sys, disk)
-}
-
-// systemMetrics reuses SystemMonitor for CPU/mem/swap/thermal and injects the
-// hottest process as plain name+pct (no PID) sourced from ProcessMonitor. A
-// degraded monitor yields a nil/partial map, which BuildSnapshot tolerates.
-func systemMetrics() map[string]any {
-	sys, err := (&monitor.SystemMonitor{}).Snapshot()
-	if err != nil || sys == nil {
-		sys = map[string]any{}
-	}
-	if name, pct, ok := topCPUProcess(); ok {
-		sys["top_cpu_name"] = name
-		sys["top_cpu_pct"] = pct
-	}
-	return sys
-}
-
-// topCPUProcess extracts the #1 CPU process (name + cpu%) from ProcessMonitor.
-// The monitor's native slice type is unexported, so we round-trip through JSON
-// rather than reimplement `ps` parsing — and we deliberately drop the PID.
-func topCPUProcess() (name string, cpuPct float64, ok bool) {
-	data, err := (&monitor.ProcessMonitor{}).Snapshot()
-	if err != nil {
-		return "", 0, false
-	}
-	raw, err := json.Marshal(data["top_cpu"])
-	if err != nil {
-		return "", 0, false
-	}
-	var procs []struct {
-		CPU  float64 `json:"CPU"`
-		Name string  `json:"Name"`
-	}
-	if json.Unmarshal(raw, &procs) != nil || len(procs) == 0 {
-		return "", 0, false
-	}
-	return procs[0].Name, procs[0].CPU, true
-}
-
 // emitDoctorJSON writes the Diagnosis to stdout (so it can be piped), while all
 // other command chatter goes to stderr like the rest of the CLI.
 func emitDoctorJSON(diag ai.Diagnosis) {
@@ -107,7 +58,7 @@ func emitDoctorJSON(diag ai.Diagnosis) {
 // core's color/format helpers.
 func renderDiagnosis(diag ai.Diagnosis) {
 	fmt.Fprintln(os.Stderr)
-	core.Bold("🩺 Diagnóstico  (motor: %s)", engineLabel(diag.Engine))
+	core.Bold("🩺 Diagnóstico  (motor: %s)", ai.EngineLabel(diag.Engine))
 
 	renderGroup("⚡ PERFORMANCE", diag.Performance, "")
 	renderGroup("🧹 QUICK WINS", diag.QuickWins,
@@ -149,18 +100,6 @@ func renderDiskContext(ctx ai.DiagnosisContext) {
 	fmt.Fprintf(os.Stderr, "  Contexto: disco al %d%% %s (%s libres de %s)\n",
 		ctx.DiskUsedPct, bar,
 		core.FormatBytes(ctx.DiskFreeBytes), core.FormatBytes(ctx.DiskTotalBytes))
-}
-
-// engineLabel renders the transparency label: the Groq model when AI produced
-// the result, or a plain "heurístico".
-func engineLabel(engine string) string {
-	if engine == ai.EngineGroq {
-		if model := ai.ModelName(); model != "" {
-			return "groq · " + model
-		}
-		return "groq"
-	}
-	return "heurístico"
 }
 
 // severityColor maps an insight severity to an ANSI color from core.
