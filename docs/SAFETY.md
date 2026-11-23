@@ -92,22 +92,33 @@ para limpiar" solo abre la selección de TUI-2 con su gate `si`, blacklist y aud
 log intactos. No muestra rutas, nombres de archivo ni PIDs: solo agregados del
 `Diagnosis`. (`internal/tui/doctor.go` — `runDoctor`, `formatDiagnosis`)
 
-### (d) MCP: tools destructivas con `dry_run=true` por defecto
+### (d) MCP: tools destructivas con preview, opt-in del humano y `confirm_plan`
 
 El servidor expone 12 tools. Las 9 de solo lectura (`mac_analyze`, `mac_battery`,
 `mac_system`, `mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
 `mac_docker_compact`, `mac_doctor`) nunca borran. Las 2 destructivas
-(`mac_clean_batch`, `mac_docker_cleanup`) usan `dry_run=true` por defecto:
-`isDryRun(nil) == true`. Solo un `dry_run=false` **explícito** ejecuta, y en ese caso
-el agente debe pedir confirmación al usuario antes de invocarlas. (`cmd/mcp.go` —
-`isDryRun`)
+(`mac_clean_batch`, `mac_docker_cleanup`) tienen **tres** barreras técnicas
+(`cmd/mcp_destructive.go`):
 
-Matices, verificados en el código:
+1. **Preview por defecto.** `dry_run=true` si se omite (`isDryRun(nil) == true`).
+   La preview devuelve el plan y un `plan_digest` (SHA-256 de los identificadores
+   ordenados del plan; en `mac_clean_batch`, de las rutas `safe_to_delete`
+   seleccionadas).
+2. **Opt-in del humano.** Con `dry_run=false` el servidor **rechaza** salvo que su
+   proceso tenga `MAC_TOOLKIT_MCP_ALLOW_DELETE=1`. La variable la fija el humano en
+   el bloque `env` de su configuración MCP; el agente no puede concedérsela. El
+   rechazo explica el opt-in y el comando de terminal equivalente
+   (`mac-toolkit docker cleanup --keep X --execute` / `mac-toolkit clean --execute`).
+3. **`confirm_plan`.** Con `dry_run=false` se exige `confirm_plan` igual al
+   `plan_digest` del plan **recalculado en ese momento**. Si falta o difiere (el
+   estado cambió desde la preview) se rechaza sin borrar y se pide una nueva preview.
 
-- `mac_clean_batch` solo borra items `safe_to_delete`, a través del cleaner (la
-  blacklist aplica), pero **no escribe audit log**.
-- `mac_docker_backup` no borra: escribe un dump en `~/docker-backups/`. No tiene
-  parámetro `dry_run`.
+Tras ejecutar se escribe el **audit log** (`ApprovalMode: "mcp"`) y se devuelven los
+resultados por item, **incluidos los fallos**. `mac_clean_batch` sigue pasando por
+`cleaner.Delete` (blacklist) y solo toca items `safe_to_delete`.
+
+Matiz: `mac_docker_backup` no borra: escribe un dump en `~/docker-backups/`. No
+tiene parámetro `dry_run`.
 
 ### (e) Blacklist de rutas del sistema
 
@@ -116,21 +127,45 @@ forma permanente, entre otros: `/System`, `/usr`, `/bin`, `/sbin`,
 `/private/var/db` y bundles de Apple. Un intento sobre esas rutas se marca
 `skipped-blacklisted`, nunca se elimina. (`internal/cleaner/`)
 
-### (f) Audit log de la limpieza de archivos (CLI y TUI)
+### (f) Audit log de toda eliminación (CLI, TUI, Docker y MCP)
 
-Cada sesión de `clean --execute` (CLI) y cada borrado desde la TUI escribe un audit
-log JSON (`reports/cleanup_<fecha_hora>/audit.json`, con modo de aprobación y
-resultado por item) mediante `reporter.AuditReporter`. (`cmd/clean.go`,
-`internal/tui/clean.go`, `internal/reporter/audit.go`)
+Cada sesión de `clean --execute` (CLI), cada borrado desde la TUI, cada
+`docker cleanup --execute` (`docker-cli`) y cada ejecución real de las tools MCP
+destructivas (`mcp`) escribe un audit log JSON
+(`reports/cleanup_<fecha_hora>/audit.json`, con modo de aprobación y resultado por
+item) mediante `reporter.AuditReporter`. (`cmd/clean.go`, `cmd/docker_cleanup.go`,
+`cmd/mcp_destructive.go`, `internal/tui/clean.go`, `internal/reporter/audit.go`)
 
-### (g) Docker: límites conocidos
+### (g) Docker: plan, gate `si` y audit
 
-`mac-toolkit docker cleanup` es dry-run por defecto y solo borra con `--execute`
-(requiere `--keep`); la tool MCP `mac_docker_cleanup` es `dry_run=true` por
-defecto. Ambos llaman a `internal/docker` directamente: **no** pasan por el gate
-`si`, la blacklist del cleaner ni el audit log. La protección es el dry-run por
-defecto y la lista `keep`; revisa siempre el dry-run antes de ejecutar.
-(`cmd/docker.go`, `internal/docker/ops.go`)
+`internal/docker` separa **planificar** de **aplicar**:
+
+- `Plan(keep)` es de **solo lectura**: lista contenedores, imágenes y volúmenes a
+  eliminar, lo que se conserva (contenedores `keep` + sus imágenes y volúmenes) y el
+  build cache reclamable. Rechaza un `keep` vacío y también un `keep` que no existe
+  (un typo dejaría sus volúmenes sin proteger).
+- `Apply(plan, runner)` ejecuta **únicamente** lo que está en el plan y devuelve un
+  resultado por item (`success`/`failure`/`skipped`); los errores **no se ignoran**.
+  Nunca ejecuta items con nombre vacío o que parezca un flag, de tipo desconocido, ni
+  un contenedor que el propio plan marca como conservado.
+- El `Runner` (exec de docker) es inyectable: los tests no tocan Docker real.
+
+`mac-toolkit docker cleanup --keep X`:
+
+1. Sin `--execute` es **dry-run**: muestra el plan y no borra.
+2. Con `--execute` muestra el plan completo, resalta los volúmenes en una línea
+   aparte (`⚠ Volúmenes: pueden contener datos (bases de datos)`), indica el conteo
+   exacto y exige un afirmativo (`core.IsAffirmative`). Vacío, EOF o cualquier otra
+   cosa → `Aborted — nothing was deleted.` sin invocar docker.
+3. Tras aplicar escribe el audit log (`ApprovalMode: "docker-cli"`; rutas
+   `docker:container:<n>`, `docker:image:<id|ref>`, `docker:volume:<n>`,
+   `docker:build-cache`) y muestra éxitos y fallos.
+
+Límite que se mantiene: la blacklist de rutas (e) protege rutas de archivo y no
+aplica a recursos Docker; su protección es la lista `keep`, el plan revisado y el gate
+humano. Docker rechaza por sí mismo `rmi`/`volume rm` de recursos en uso por los
+contenedores conservados, y esos rechazos se informan como fallos.
+(`internal/docker/plan.go`, `cmd/docker_cleanup.go`)
 
 ## Resumen
 
@@ -142,8 +177,8 @@ defecto y la lista `keep`; revisa siempre el dry-run antes de ejecutar.
 | `clean` | dry-run (preview) | `--execute` + aprobación + confirmación `si` |
 | Estados térmicos (`system`, header, `mac_system`) | solo lectura | — (nunca modifica nada) |
 | `docker backup` / MCP `mac_docker_backup` | escribe un dump en `~/docker-backups/` | — (no borra; sin `dry_run`) |
-| `docker cleanup` | dry-run | `--keep` + `--execute` (sin gate `si`, blacklist ni audit) |
+| `docker cleanup` | dry-run (muestra el plan) | `--keep` + `--execute` + confirmación `si` (+ audit `docker-cli`) |
 | MCP read-only tools (9, incl. `mac_doctor`) | solo lectura | — |
-| MCP `mac_clean_batch` / `mac_docker_cleanup` | `dry_run=true` | `dry_run=false` explícito + confirmación del usuario |
+| MCP `mac_clean_batch` / `mac_docker_cleanup` | `dry_run=true` (preview + `plan_digest`) | `dry_run=false` + `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` en el servidor + `confirm_plan` = `plan_digest` vigente (+ audit `mcp`) |
 
 > Regla de oro: ante cualquier ambigüedad, Mac Toolkit **no borra**.

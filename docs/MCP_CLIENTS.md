@@ -26,7 +26,8 @@ which mac-toolkit && mac-toolkit --version
 
 The server is **local and read-safe by default**: the destructive tools
 (`mac_clean_batch`, `mac_docker_cleanup`) are `dry_run=true` unless the call passes an
-explicit `dry_run=false`. No tokens or network bridge are needed.
+explicit `dry_run=false`, and even then they are **refused** unless you opt in (see
+[Enabling deletion](#enabling-deletion-human-opt-in)). No tokens or network bridge are needed.
 
 ---
 
@@ -170,14 +171,38 @@ Read-only (9, never delete or write): `mac_analyze`, `mac_battery`, `mac_system`
 `mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
 `mac_docker_compact`, `mac_doctor`.
 
-Destructive (2, `dry_run=true` by default; only an explicit `dry_run=false`
-deletes): `mac_clean_batch`, `mac_docker_cleanup`.
+Destructive (2, `dry_run=true` by default): `mac_clean_batch`, `mac_docker_cleanup`.
+A real deletion (`dry_run=false`) needs the server env `MAC_TOOLKIT_MCP_ALLOW_DELETE=1`
+**and** `confirm_plan` equal to the `plan_digest` of a reviewed preview.
 
 Writes a file, deletes nothing (1, no `dry_run` parameter): `mac_docker_backup`
 (dumps a running container's database to `~/docker-backups/`).
 
 Tip: auto-approve only the 9 read-only tools in your client and keep manual approval
 for the other three.
+
+### Enabling deletion (human opt-in)
+
+Destructive calls with `dry_run=false` are rejected by default. To allow them, add the
+variable to the server's `env` in your client config (only you can; the agent cannot):
+
+```json
+{
+  "mcpServers": {
+    "mac-toolkit": {
+      "command": "mac-toolkit",
+      "args": ["mcp"],
+      "env": { "MAC_TOOLKIT_MCP_ALLOW_DELETE": "1" }
+    }
+  }
+}
+```
+
+Flow: preview (`dry_run=true`) returns `plan_digest` → you review the plan →
+`dry_run=false` with `confirm_plan=<plan_digest>`. If the state changed since the
+preview, the digest no longer matches and nothing is deleted. Every real run writes an
+audit log (`approval_mode: "mcp"`). Without the opt-in, use the terminal:
+`mac-toolkit docker cleanup --keep X --execute` / `mac-toolkit clean --execute`.
 
 ---
 

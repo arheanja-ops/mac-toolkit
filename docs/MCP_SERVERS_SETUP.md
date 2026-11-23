@@ -320,3 +320,30 @@ Para cada server:
 ---
 
 *Última actualización: 2026-08-28 (fila de `mac-toolkit` actualizada a v1.7.1: 12 tools)*
+
+---
+
+## 4. Mac Toolkit — borrados por MCP (opt-in)
+
+Las tools destructivas de `mac-toolkit` (`mac_clean_batch`, `mac_docker_cleanup`)
+rechazan `dry_run=false` salvo que el servidor arranque con
+`MAC_TOOLKIT_MCP_ALLOW_DELETE=1`. Se declara en `env`, igual que los tokens de los
+otros servidores:
+
+```json
+{
+  "mcpServers": {
+    "mac-toolkit": {
+      "command": "mac-toolkit",
+      "args": ["mcp"],
+      "env": {
+        "MAC_TOOLKIT_MCP_ALLOW_DELETE": "1"
+      }
+    }
+  }
+}
+```
+
+Además, cada borrado real exige `confirm_plan` igual al `plan_digest` devuelto por una
+preview reciente, y escribe un audit log. Sin la variable, la configuración sin `env`
+(solo lectura + preview) sigue funcionando. Detalle: `docs/SAFETY.md` (d).
