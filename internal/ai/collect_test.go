@@ -53,3 +53,28 @@ func mustJSON(t *testing.T, v any) string {
 	}
 	return string(b)
 }
+
+// TestCopyAllowedDropsAppListsAndUnknownKeys is the privacy gate for the new
+// monitor keys: the dedicated monitors also return top-app lists, which must
+// never be merged into the map that feeds the snapshot.
+func TestCopyAllowedDropsAppListsAndUnknownKeys(t *testing.T) {
+	sys := map[string]any{}
+	copyAllowed(sys, "memory", map[string]any{
+		"swap_thrash": true, "pressure_code": 2,
+		"top_memory": "App Alpha 1000 MB", "uptime_hours": 3.0,
+	})
+	copyAllowed(sys, "cpu", map[string]any{
+		"user_pct": 10.0, "sys_pct": 5.0, "load5_per_core": 0.5,
+		"top_cpu": "App Alpha", "thermal": "Normal",
+	})
+	want := map[string]bool{"swap_thrash": true, "pressure_code": true,
+		"user_pct": true, "sys_pct": true, "load5_per_core": true}
+	if len(sys) != len(want) {
+		t.Fatalf("unexpected keys merged: %v", sys)
+	}
+	for k := range sys {
+		if !want[k] {
+			t.Fatalf("key %q must not be merged", k)
+		}
+	}
+}

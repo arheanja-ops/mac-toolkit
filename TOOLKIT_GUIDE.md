@@ -70,13 +70,13 @@ Tras una pantalla de bienvenida (banner + resumen del sistema), la TUI muestra:
 
 - **Header en vivo** (refresco cada 2 s): disco, memoria, CPU y estado térmico.
 - **Panel izquierdo** — acciones: Disk (Analyze, Status, Doctor), Clean (Preview,
-  Select & clean), Monitors (Battery, System, Processes, Network), Reports (Last
+  Select & clean), Monitors (Battery, System, Memory, CPU, Processes, Network), Reports (Last
   report) y Session (Quit / Salir).
 - **Panel derecho** — resultado de la acción, con scroll. Responsive hasta 80x24.
 
 | Modo | Teclas |
 |------|--------|
-| Normal | `↑↓` mover · `Tab` cambiar panel · `⏎` ejecutar · `/` filtrar · `a` Analyze · `p` Preview · `c` modo selección de limpieza · `d` Doctor · `r` refrescar Doctor (si está abierto) · `q`/`Ctrl+C`/`Esc` salir |
+| Normal | `↑↓` mover · `Tab` cambiar panel · `⏎` ejecutar · `/` filtrar · `a` Analyze · `p` Preview · `c` modo selección de limpieza · `d` Doctor · `m` Memory · `u` CPU · `r` refrescar la vista abierta (Doctor/Memory/CPU) · `q`/`Ctrl+C`/`Esc` salir |
 | Selección de limpieza | `↑↓` (o `k`/`j`) mover · `espacio` marcar · `a` todos los `safe` · `n` ninguno · `⏎` continuar · `Esc` cancelar |
 | Confirmación | escribir `si` + `⏎` borra; `Esc` u otra entrada cancela |
 
@@ -170,6 +170,8 @@ mac-toolkit docker compact                   # Docker.raw: tamaño virtual vs us
 ```bash
 mac-toolkit battery      # Salud, ciclos, temperatura, voltaje
 mac-toolkit system       # CPU, memoria, swap, estado térmico (Normal/Throttled/Warning/Unknown), modelo
+mac-toolkit memory       # RAM usada (def. Monitor de Actividad), presión, swap, top 5 apps
+mac-toolkit cpu          # user/sys/idle (2.ª muestra de top), load por núcleo, núcleos P/E, top 5 apps
 mac-toolkit processes    # Top 10 por CPU + top 10 por memoria
 mac-toolkit network      # WiFi, tráfico, conexiones, conectividad
 ```
@@ -432,6 +434,13 @@ Estos paths están protegidos y nunca se borran:
 - `com.apple.dock`, `com.apple.finder`, `com.apple.spotlight`
 
 ### Confirmación final "si"
+**Memory y CPU (solo lectura).** `m` y `u` abren vistas dedicadas; `r` las refresca
+(solo manual, con spinner; CPU tarda ~2 s). La *memoria usada* sigue la definición de
+Monitor de Actividad: `App Memory (Anonymous − Purgeable) + Wired + Compressed`; es la
+misma cifra en `system`, el header, Memory y Doctor. Las apps se agrupan por aplicación
+y nunca se muestran PIDs ni rutas. El Doctor añade insights de CPU saturada, tiempo de
+kernel elevado y paginación intensa (solo con números agregados).
+
 Con `--execute`, `clean` exige además escribir `si` tras ver el número exacto de elementos y el tamaño total. La TUI usa el mismo gate (`core.IsAffirmative`) en su modal.
 
 ### TUI
@@ -591,7 +600,7 @@ mac-toolkit/
 │   ├── full.go               # full (analyze + save + clean)
 │   ├── status.go             # status (dominios + riesgos)
 │   ├── report.go             # report --last
-│   ├── monitors.go           # battery, system, processes, network
+│   ├── monitors.go           # battery, system, memory, cpu, processes, network
 │   └── mcp.go                # MCP server (12 tools, stdio transport)
 ├── internal/
 │   ├── core/                  # Fundamentos
@@ -610,7 +619,7 @@ mac-toolkit/
 │   ├── monitor/               # 4 system monitors
 │   │   ├── monitor.go        # Interface
 │   │   ├── thermal.go        # parseThermal + IsThermalAlert
-│   │   └── *.go              # battery, system, processes, network
+│   │   └── *.go              # battery, system, memory, cpu, processes, network
 │   ├── tui/                   # TUI Bubble Tea (2 paneles, clean, doctor)
 │   ├── ai/                    # doctor: snapshot sin PII, heurístico, Groq, collect
 │   ├── docker/                # backup, cleanup, compact
@@ -640,4 +649,4 @@ documentación se mergean sin tag ni release. Detalle y checklist en
 
 ---
 
-*Mac Toolkit v1.7 — Go CLI + TUI + `doctor` + MCP para macOS*
+*Mac Toolkit v1.8 — Go CLI + TUI + `doctor` + MCP para macOS*

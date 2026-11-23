@@ -24,6 +24,7 @@ mac-toolkit/
 │   ├── system.go                 # system monitor command
 │   ├── processes.go              # processes monitor command
 │   ├── network.go                # network monitor command
+│   ├── (memory, cpu)             # memory/cpu commands live in monitors.go (v1.8.0)
 │   └── menu.go                   # Interactive menu (huh)
 │
 ├── internal/
@@ -106,7 +107,11 @@ Battery, system, and network monitors shell out to macOS utilities:
 | `system_profiler`  | system        | Hardware model, chip             |
 | `df`               | disk analyzer | Volume usage                     |
 | `airport -I`       | network       | WiFi SSID, signal strength       |
-| `memory_pressure`  | system        | Memory pressure level            |
+| `memory_pressure`  | system, memory | Memory pressure level / free %  |
+| `vm_stat`          | system, memory | Page counters (used = App + Wired + Compressed) |
+| `sysctl`           | memory, cpu   | hw.memsize, vm.swapusage, kern.boottime, vm.loadavg, hw.ncpu, hw.perflevel* |
+| `top -l 2`         | cpu           | user/sys/idle (2nd sample)       |
+| `ps`               | memory, cpu   | RSS/%CPU aggregated per app (no PIDs, no paths) |
 
 All `exec.Command` calls use argument arrays (no shell interpolation). Timeouts
 are enforced via `context.WithTimeout`. Output is parsed with string splitting
@@ -349,7 +354,7 @@ toolkit clean [--execute] [--mode M] [--domain X]
 ### 5.3 Monitor
 
 ```
-toolkit battery | system | processes | network
+toolkit battery | system | memory | cpu | processes | network
         │
         ▼
   monitor.Collect(ctx)    // exec.Command + gopsutil
@@ -523,3 +528,16 @@ is `Unknown` ("ignorance must not raise an alarm"). `IsThermalAlert` is an allow
 | Exit codes 0/1/2 (section 6) | `Execute()` exits 1 when Cobra returns an error; partial-failure codes are not implemented |
 | Integration tests, symlink blacklist tests (section 7) | Not present; the suite is 108 top-level tests (167 with subtests) across `cmd`, `ai`, `analyzer`, `cleaner`, `core`, `monitor`, `tui` |
 | MCP server version | `mcp.Implementation.Version` is a fixed `"1.0.0"` in `cmd/mcp.go` |
+
+
+## v1.8.0 — Memory and CPU views
+
+- `internal/monitor`: `MemoryMonitor`, `CPUMonitor`, `classify.go` (pure threshold
+  functions), `apps.go` (per-app aggregation, no PID/path), `memstats.go` (parsers and
+  the single `readMemUsage` source of "used memory"). External commands go through the
+  injectable `runCmd`, so tests feed synthetic output.
+- `internal/tui`: `viewID`/`openView` generalizes the Doctor flag; `memory_view.go`,
+  `cpu_view.go` and `views.go` (own lipgloss bars). Manual refresh only (`r`).
+- `internal/ai`: `AISnapshot` gains numeric fields; `collect.go` copies an allowlist of
+  monitor keys; `heuristic.go` adds three PERFORMANCE rules. Spec:
+  `docs/specs/2026-11-23-tui-memory-cpu.md`.

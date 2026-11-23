@@ -2,6 +2,7 @@ package ai
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -150,4 +151,50 @@ func hasDomain(domains []DomainSummary, name string) bool {
 		}
 	}
 	return false
+}
+
+// TestBuildSnapshot_LoadFieldsAreNumbersOnly extends the privacy gate to the
+// load/paging fields: they must be filled from the monitor keys, serialize
+// under their documented names, and be numeric or boolean (a string field could
+// carry a name or a path).
+func TestBuildSnapshot_LoadFieldsAreNumbersOnly(t *testing.T) {
+	sys := map[string]any{
+		"load5_per_core": 2.5, "user_pct": 20.0, "sys_pct": 55.0,
+		"swap_thrash": true, "pressure_code": 4,
+		// Keys that must be ignored even if a caller passes them by mistake.
+		"top_memory": "/Applications/Alpha.app", "top_cpu": "Alpha",
+	}
+	snap := BuildSnapshot(nil, sys, core.DiskSnapshot{})
+	if snap.LoadPerCore != 2.5 || snap.CPUUserPct != 20 || snap.CPUSysPct != 55 ||
+		!snap.SwapThrash || snap.MemoryPressureLevel != 4 {
+		t.Fatalf("load fields not applied: %+v", snap)
+	}
+	blob := mustJSON(t, snap)
+	for _, key := range []string{"load_per_core", "cpu_user_pct", "cpu_sys_pct", "swap_thrash", "memory_pressure_level"} {
+		if !strings.Contains(blob, `"`+key+`"`) {
+			t.Fatalf("snapshot missing %q: %s", key, blob)
+		}
+	}
+	for _, leak := range []string{"Alpha", "/Applications", ".app"} {
+		if strings.Contains(blob, leak) {
+			t.Fatalf("snapshot leaked %q: %s", leak, blob)
+		}
+	}
+	rt := reflect.TypeOf(snap)
+	for _, name := range []string{"LoadPerCore", "CPUUserPct", "CPUSysPct", "SwapThrash", "MemoryPressureLevel"} {
+		f, _ := rt.FieldByName(name)
+		switch f.Type.Kind() {
+		case reflect.Float64, reflect.Int, reflect.Bool:
+		default:
+			t.Fatalf("%s must be numeric or bool, got %s", name, f.Type.Kind())
+		}
+	}
+}
+
+// Wrong-typed or missing monitor keys leave the zero value (healthy/unknown).
+func TestBuildSnapshot_LoadFieldsToleratesBadTypes(t *testing.T) {
+	snap := BuildSnapshot(nil, map[string]any{"load5_per_core": "x", "swap_thrash": 1}, core.DiskSnapshot{})
+	if snap.LoadPerCore != 0 || snap.SwapThrash {
+		t.Fatalf("bad types must be ignored: %+v", snap)
+	}
 }

@@ -52,6 +52,17 @@ type AISnapshot struct {
 	ThermalState string  `json:"thermal_state"`
 
 	TopCPUProcess TopProcess `json:"top_cpu_process"`
+
+	// Numbers and a flag only: the load/memory insights never need a name,
+	// path or PID, so none of those can reach the snapshot through here.
+	// LoadPerCore is the 5-minute load average divided by the core count (the
+	// same basis monitor.ClassifyCPU uses), MemoryPressureLevel the kernel code
+	// (1 normal, 2 warning, 4 critical, 0 unknown).
+	LoadPerCore         float64 `json:"load_per_core"`
+	CPUUserPct          float64 `json:"cpu_user_pct"`
+	CPUSysPct           float64 `json:"cpu_sys_pct"`
+	SwapThrash          bool    `json:"swap_thrash"`
+	MemoryPressureLevel int     `json:"memory_pressure_level"`
 }
 
 // diskDomain is the analyzer domain that reports whole-volume usage. It must be
@@ -123,6 +134,7 @@ func applySystemMetrics(snap *AISnapshot, sys map[string]any) {
 	if v, ok := sys["thermal"].(string); ok {
 		snap.ThermalState = v
 	}
+	applyLoadMetrics(snap, sys)
 	// Top CPU process is injected by the caller as plain name+pct (no PID),
 	// because the monitor's native type is unexported.
 	if v, ok := sys["top_cpu_name"].(string); ok {
@@ -144,4 +156,25 @@ func topRisk(items []core.CleanableItem) core.RiskLevel {
 		}
 	}
 	return highest
+}
+
+// applyLoadMetrics folds the CPU/memory monitor keys into the snapshot. Same
+// tolerance as above: a missing or wrong-typed key leaves the zero value, which
+// every rule treats as "healthy / unknown".
+func applyLoadMetrics(snap *AISnapshot, sys map[string]any) {
+	if v, ok := sys["load5_per_core"].(float64); ok {
+		snap.LoadPerCore = v
+	}
+	if v, ok := sys["user_pct"].(float64); ok {
+		snap.CPUUserPct = v
+	}
+	if v, ok := sys["sys_pct"].(float64); ok {
+		snap.CPUSysPct = v
+	}
+	if v, ok := sys["swap_thrash"].(bool); ok {
+		snap.SwapThrash = v
+	}
+	if v, ok := sys["pressure_code"].(int); ok {
+		snap.MemoryPressureLevel = v
+	}
 }

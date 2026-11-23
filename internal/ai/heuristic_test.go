@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -151,5 +152,54 @@ func TestHeuristic_DangerReviewSeverityIsHigh(t *testing.T) {
 	d := Heuristic(snap)
 	if len(d.Review) != 1 || d.Review[0].Severity != SevHigh {
 		t.Fatalf("danger domain should map to high severity review, got %+v", d.Review)
+	}
+}
+
+func TestHeuristic_LoadRules(t *testing.T) {
+	cases := []struct {
+		name  string
+		snap  AISnapshot
+		title string
+		want  bool
+	}{
+		{"saturated", AISnapshot{LoadPerCore: 2.5}, "CPU saturada", true},
+		{"load 2.0 is only high", AISnapshot{LoadPerCore: 2.0}, "CPU saturada", false},
+		{"kernel time", AISnapshot{CPUSysPct: 55, CPUUserPct: 10}, "Tiempo de kernel elevado", true},
+		{"sys 40 is not elevated", AISnapshot{CPUSysPct: 40, CPUUserPct: 5}, "Tiempo de kernel elevado", false},
+		{"sys above 40 but below user", AISnapshot{CPUSysPct: 45, CPUUserPct: 50}, "Tiempo de kernel elevado", false},
+		{"paging", AISnapshot{SwapThrash: true}, "Paginación intensa", true},
+		{"no paging", AISnapshot{SwapThrash: false}, "Paginación intensa", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasTitle(Heuristic(tc.snap).Performance, tc.title); got != tc.want {
+				t.Fatalf("%s = %v, want %v", tc.title, got, tc.want)
+			}
+		})
+	}
+}
+
+// A healthy machine (and a snapshot with no readings at all) must raise none of
+// the new rules: missing data is not evidence of a problem.
+func TestHeuristic_LoadRulesQuietWhenHealthy(t *testing.T) {
+	healthy := AISnapshot{LoadPerCore: 0.3, CPUUserPct: 12, CPUSysPct: 6,
+		MemoryPressureLevel: 1, MemoryUsedPct: 55, DiskTotalBytes: 500 * gb, DiskUsedPct: 40}
+	for _, snap := range []AISnapshot{healthy, {}} {
+		for _, in := range Heuristic(snap).Performance {
+			switch in.Title {
+			case "CPU saturada", "Tiempo de kernel elevado", "Paginación intensa":
+				t.Fatalf("rule %q fired on a healthy snapshot", in.Title)
+			}
+		}
+	}
+}
+
+// Kernel-time wording must stay cautious: it names possible causes, never one.
+func TestHeuristic_KernelTimeIsCautious(t *testing.T) {
+	d := Heuristic(AISnapshot{CPUSysPct: 60, CPUUserPct: 10})
+	for _, in := range d.Performance {
+		if in.Title == "Tiempo de kernel elevado" && !strings.Contains(in.Detail, "Puede deberse") {
+			t.Fatalf("detail must hedge the cause: %q", in.Detail)
+		}
 	}
 }

@@ -58,12 +58,12 @@ type model struct {
 	disk    core.DiskSnapshot
 	hdr     headerStats
 	running bool
-	// doctorOpen is true while the detail pane shows the Doctor panel, so 'r'
-	// refreshes it (and only it) without a second, dedicated action.
-	doctorOpen bool
-	width      int
-	height     int
-	ready      bool
+	// openView is the dedicated panel (Doctor, Memory, CPU) shown in the detail
+	// pane, so 'r' refreshes it (and only it). viewNone for ordinary actions.
+	openView viewID
+	width    int
+	height   int
+	ready    bool
 
 	// TUI-2 clean flow state (spec Data model). mode is normalMode unless the
 	// user is in the interactive select/confirm/cleaning flow.
@@ -229,10 +229,14 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		return m.enterSelect(), nil
 	case "d":
-		return m.runDoctorAction()
+		return m.runView(viewDoctor)
+	case "m":
+		return m.runView(viewMemory)
+	case "u":
+		return m.runView(viewCPU)
 	case "r":
-		if m.doctorOpen {
-			return m.runDoctorAction()
+		if m.openView != viewNone {
+			return m.runView(m.openView)
 		}
 	}
 
@@ -268,8 +272,8 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 	if it.action.run == nil {
 		return m, nil
 	}
-	if it.action.label == doctorLabel {
-		return m.runDoctorAction()
+	if v := viewForLabel(it.action.label); v != viewNone {
+		return m.runView(v)
 	}
 	return m.runAction(it.action.run)
 }
@@ -278,22 +282,23 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 // and the a/p shortcuts). It never deletes — run() only produces viewport text.
 // The current right-pane width is captured so the action renders responsively.
 func (m model) runAction(run func(width int) (string, error)) (tea.Model, tea.Cmd) {
-	m.doctorOpen = false
+	m.openView = viewNone
 	return m.launch(run)
 }
 
-// runDoctorAction starts the read-only Doctor. Every call re-analyzes (no
-// cache): 'd' and 'r' are both a fresh run. A run already in flight is not
-// duplicated — the key is ignored until the spinner stops.
-func (m model) runDoctorAction() (tea.Model, tea.Cmd) {
+// runView starts one of the dedicated read-only views (Doctor, Memory, CPU).
+// Every call re-reads the system (no cache): the shortcut and 'r' are both a
+// fresh run. A run already in flight is not duplicated — the key is ignored
+// until the spinner stops. Refresh is manual only; nothing polls.
+func (m model) runView(v viewID) (tea.Model, tea.Cmd) {
 	if m.running {
 		return m, nil
 	}
-	m.doctorOpen = true
-	return m.launch(runDoctor)
+	m.openView = v
+	return m.launch(v.runner())
 }
 
-// launch is the shared off-loop runner behind runAction and runDoctorAction.
+// launch is the shared off-loop runner behind runAction and runView.
 func (m model) launch(run func(width int) (string, error)) (tea.Model, tea.Cmd) {
 	m.running = true
 	_, rightW, _ := m.paneGeometry()
@@ -553,15 +558,17 @@ func renderFooter(mode cleanMode, width int) string {
 		hints = []struct{ key, desc string }{
 			{"↑↓", "nav"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
 			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
-			{"d", "doctor"}, {"/", "filtrar"}, {"q", "salir"},
+			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"/", "filtrar"}, {"q", "salir"},
 		}
 		// On an 80-column (or narrower) terminal the full set overflows, so drop
 		// the self-evident navigation hints and keep the action shortcuts plus
 		// the all-important "q salir" — never truncate that away.
 		if width > 0 && width < 90 {
+			// "/ filtrar" and the long "preview" label make room for m/u within
+			// 80 columns; both are documented in the welcome text and README.
 			hints = []struct{ key, desc string }{
 				{"⏎", "ejecutar"}, {"a", "analyze"}, {"c", "clean"},
-				{"p", "preview"}, {"d", "doctor"}, {"/", "filtrar"}, {"q", "salir"},
+				{"p", "prev"}, {"d", "doctor"}, {"m", "mem"}, {"u", "cpu"}, {"q", "salir"},
 			}
 		}
 	}

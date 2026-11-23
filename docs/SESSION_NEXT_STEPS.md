@@ -1,7 +1,17 @@
 # 📍 DÓNDE VAMOS — Punto de retomada
 
 **Última actualización:** 2026-11-23
-**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.7.2**
+**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.8.0**
+
+## ✅ Resuelto en v1.8.0
+
+- **Vistas Memory y CPU (solo lectura):** comandos `memory`/`cpu`, acciones en la TUI,
+  atajos `m`/`u` y `r` genérico (`openView`). Apps agregadas por aplicación, sin PIDs
+  ni rutas.
+- **Una sola definición de memoria usada** (Monitor de Actividad): `system`, header,
+  Memory y Doctor muestran la misma cifra.
+- **Doctor:** insights de CPU saturada, tiempo de kernel elevado y paginación intensa.
+  Spec: `docs/specs/2026-11-23-tui-memory-cpu.md`.
 
 ## ✅ Resuelto en v1.7.2
 
@@ -31,7 +41,10 @@
    12, falta `mac_doctor`) y su lista `allowedTools` no incluye `mac_doctor`.
 3. **Versión del servidor MCP:** `cmd/mcp.go` anuncia `Version: "1.0.0"` fija en
    `mcp.Implementation`; conviene que siga la versión del binario.
-4. **Agentes `.kiro/agents/*.json`:** sus prompts y `allowedTools` deben conocer el
+4. **CPU del header y de `system`:** `cpu_percent` sale de la primera muestra de
+   `top -l 1`, que es acumulada; la vista CPU usa la segunda muestra. Valorar que
+   `system`/header usen el mismo cálculo que `CPUMonitor`.
+5. **Agentes `.kiro/agents/*.json`:** sus prompts y `allowedTools` deben conocer el
    parámetro `confirm_plan` y el opt-in `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` de las tools
    MCP destructivas (v1.7.2). Va en el PR de agentes del punto 2.
 
@@ -41,24 +54,7 @@
 - **Docker en la TUI:** backup / cleanup / compact como acciones.
 - **Fase 2 IA:** `doctor` agente (function-calling).
 - **Fase 3 IA:** `optimize --safe`.
-
-## 💡 Propuesta (NO implementada): v1.8.0 "Presión del sistema"
-
-Hoy `system` reporta CPU, memoria, swap y estado térmico, pero no distingue una
-máquina saturada de una ocupada. Idea para un MINOR futuro, solo lectura:
-
-- **Load average vs núcleos** (`sysctl vm.loadavg` / `hw.ncpu`): carga sostenida
-  muy por encima del número de núcleos.
-- **Swap usado y compresor** (`sysctl vm.swapusage`, `vm_stat`): cuánto del swap y
-  de la memoria comprimida está en uso.
-- **Swap in/out** (`vm_stat`, páginas swapped in/out desde el arranque): detectar
-  thrashing.
-- Exponerlo en `system`, en el header/panel de la TUI, en `mac_system` y como
-  insight del `doctor` (agregados, sin PII), con tests de tabla sobre salidas reales
-  de los comandos, como se hizo con el parser térmico.
-
-Antes de implementar: spec en `docs/specs/` (requirements → design → tasks) y
-confirmar los nombres exactos de los contadores con los comandos reales.
+- **MCP `mac_memory`/`mac_cpu`:** descartado por ahora (decisión de producto).
 
 ## ✅ Entregado y en producción
 
@@ -73,10 +69,11 @@ confirmar los nombres exactos de los contadores con los comandos reales.
 | v1.7.0 | 2026-11-20 | TUI-3: panel Doctor (`d`, `r` refresca) + `internal/ai/collect.go` |
 | v1.7.1 | 2026-11-23 | Fix falso positivo térmico + `--version` con `go install` |
 | v1.7.2 | 2026-11-23 | Gates de seguridad: Docker cleanup (plan + "si" + audit) y MCP destructivo (opt-in + `confirm_plan` + audit) |
+| v1.8.0 | 2026-11-23 | Vistas Memory y CPU (`m`/`u`/`r`), memoria usada como Monitor de Actividad, insights nuevos en `doctor` |
 
 ## 🔒 Seguridad (ver docs/SAFETY.md)
 
-`doctor`, `analyze` y monitores: solo lectura. `clean`: dry-run por defecto →
+`doctor`, `analyze` y monitores (incl. Memory y CPU): solo lectura. `clean`: dry-run por defecto →
 `--execute` → aprobación → confirmación "si". TUI: solo borra items `safe`, con modal
 "si", blacklist y audit log. MCP: tools destructivas con `dry_run=true` por defecto, opt-in del servidor y `confirm_plan`. Docker cleanup: plan + "si" + audit.
 

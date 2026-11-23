@@ -67,7 +67,7 @@ Al abrir entra a una pantalla de bienvenida con un resumen del sistema. El layou
 
 Acciones del panel izquierdo (`internal/tui/actions.go`): **Disk** (Analyze,
 Status, Doctor) · **Clean** (Preview, Select & clean) · **Monitors** (Battery,
-System, Processes, Network) · **Reports** (Last report) · **Session** (Quit / Salir).
+System, Memory, CPU, Processes, Network) · **Reports** (Last report) · **Session** (Quit / Salir).
 
 **Teclas en modo normal** (`internal/tui/model.go`):
 
@@ -81,7 +81,9 @@ System, Processes, Network) · **Reports** (Last report) · **Session** (Quit / 
 | `p` | Preview de limpieza (dry-run) |
 | `c` | Abrir el modo selección de limpieza |
 | `d` | Doctor (diagnóstico priorizado, solo lectura) |
-| `r` | Refrescar Doctor (solo si el panel Doctor está abierto) |
+| `m` | Memory (RAM, presión, swap, top apps; solo lectura) |
+| `u` | CPU (user/sys/idle, load por núcleo, top apps; tarda ~2 s) |
+| `r` | Refrescar la vista abierta (Doctor, Memory o CPU); sin vista abierta no hace nada |
 | `q` · `Ctrl+C` · `Esc` | Salir (con filtro activo, `Esc` solo cierra el filtro) |
 
 **Teclas en el modo selección de limpieza:** `↑↓` (o `k`/`j`) mover · `espacio`
@@ -94,6 +96,19 @@ entrada cancela sin borrar.
 El panel **Doctor** muestra tres grupos (PERFORMANCE, QUICK WINS, REQUIERE
 REVISIÓN), el contexto de disco y el motor usado (Groq o heurístico). Cada `d`/`r`
 re-analiza sin caché. Es solo lectura y se adapta hasta 80x24.
+
+Las vistas **Memory** (`m`) y **CPU** (`u`) son de solo lectura, se refrescan solo a
+mano (`r`) y corren con spinner. Agrupan procesos por aplicación y no muestran PIDs
+ni rutas. El Doctor suma tres insights (CPU saturada, tiempo de kernel elevado,
+paginación intensa) a partir de números agregados.
+
+#### ¿Qué es "memoria usada"?
+
+`memoria usada = App Memory + Wired + Compressed`, la misma definición de Monitor de
+Actividad, donde `App Memory = Anonymous pages − Pages purgeable` (de `vm_stat`, con el
+tamaño de página real) y el total es `hw.memsize`. La caché de archivos no cuenta como
+usada porque el sistema la devuelve cuando hace falta. Esa cifra es la que muestran
+`system`, el header de la TUI, Memory y Doctor.
 
 **Limpieza interactiva (TUI-2).** Además de analizar, la TUI puede **borrar**:
 
@@ -159,6 +174,8 @@ mac-toolkit docker compact                        # Docker.raw: tamaño virtual 
 mac-toolkit battery      # Salud, ciclos, temperatura
 mac-toolkit system       # CPU, memoria, swap, estado térmico (Normal/Throttled/Warning/Unknown)
 mac-toolkit processes    # Top 10 por CPU y memoria
+mac-toolkit memory       # RAM usada (def. Monitor de Actividad), presión, swap, top apps
+mac-toolkit cpu          # user/sys/idle, load por núcleo, núcleos P/E, top apps (~2 s)
 mac-toolkit network      # WiFi, estadísticas, conectividad
 
 # Info
@@ -230,7 +247,7 @@ mac-toolkit/
 ├── internal/
 │   ├── core/         # config, models, runner (goroutines), logger, approval, IsAffirmative
 │   ├── analyzer/     # Interfaz + 11 domain analyzers (auto-registrados via init())
-│   ├── monitor/      # Interfaz + 4 monitors (battery, system, processes, network) + parser térmico
+│   ├── monitor/      # Interfaz + 6 monitors (battery, system, memory, cpu, processes, network) + parser térmico
 │   ├── tui/          # TUI estilo k9s (Bubble Tea): 2 paneles, header en vivo, clean, doctor
 │   ├── ai/           # doctor: snapshot sin PII, motor heurístico, cliente Groq, collect
 │   ├── docker/       # backup, cleanup y compact de Docker
@@ -415,6 +432,6 @@ go test ./... -v -count=1
 
 ---
 
-*Mac Toolkit v1.7 — Go CLI + TUI (k9s-style) + `doctor` (IA/Groq) + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
+*Mac Toolkit v1.8 — Go CLI + TUI (k9s-style) + `doctor` (IA/Groq) + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
 
 Ver [TOOLKIT_GUIDE.md](TOOLKIT_GUIDE.md) para documentación completa: configuración MCP en Kiro Desktop/CLI, herramientas disponibles, seguridad, skills, y guía de extensibilidad.

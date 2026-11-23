@@ -59,9 +59,37 @@ var networkCmd = &cobra.Command{
 	},
 }
 
+var memoryCmd = &cobra.Command{
+	Use:   "memory",
+	Short: "RAM used (Activity Monitor definition), pressure, swap, top apps",
+	Run: func(cmd *cobra.Command, args []string) {
+		m := &monitor.MemoryMonitor{}
+		if err := m.Display(); err != nil {
+			core.Error("Memory: %v", err)
+			return
+		}
+		core.Success("Listo (memory)")
+	},
+}
+
+var cpuCmd = &cobra.Command{
+	Use:   "cpu",
+	Short: "CPU split, load per core, cores, thermal, top apps (takes ~2 s)",
+	Run: func(cmd *cobra.Command, args []string) {
+		m := &monitor.CPUMonitor{}
+		if err := m.Display(); err != nil {
+			core.Error("CPU: %v", err)
+			return
+		}
+		core.Success("Listo (cpu)")
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(batteryCmd)
 	rootCmd.AddCommand(systemCmd)
 	rootCmd.AddCommand(processesCmd)
 	rootCmd.AddCommand(networkCmd)
+	rootCmd.AddCommand(memoryCmd)
+	rootCmd.AddCommand(cpuCmd)
 }
