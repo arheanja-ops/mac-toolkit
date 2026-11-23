@@ -16,7 +16,10 @@ func BuildDoctorSnapshot(analyze func() []core.AnalysisResult) AISnapshot {
 	return BuildSnapshot(analyze(), systemMetrics(), core.ReadDiskSnapshot())
 }
 
-// systemMetrics reuses SystemMonitor for CPU/mem/swap/thermal and injects the
+// systemMetrics reuses SystemMonitor for CPU/mem/swap/thermal, merges the
+// numeric keys of MemoryMonitor and CPUMonitor (load per core, CPU split,
+// paging flag, pressure code; nothing else, so no app names or paths ride
+// along) and injects the
 // hottest process as plain name+pct (no PID) sourced from ProcessMonitor. A
 // degraded monitor yields a nil/partial map, which BuildSnapshot tolerates.
 func systemMetrics() map[string]any {
@@ -24,11 +27,45 @@ func systemMetrics() map[string]any {
 	if err != nil || sys == nil {
 		sys = map[string]any{}
 	}
+	mergeLoadKeys(sys)
 	if name, pct, ok := topCPUProcess(); ok {
 		sys["top_cpu_name"] = name
 		sys["top_cpu_pct"] = pct
 	}
 	return sys
+}
+
+// loadKeys is the allowlist of monitor keys copied into the system map. It is
+// an allowlist on purpose: the monitors also return top-app lists, and those
+// must never be merged into something that gets serialized.
+var loadKeys = map[string][]string{
+	"memory": {"swap_thrash", "pressure_code"},
+	"cpu":    {"user_pct", "sys_pct", "load5_per_core"},
+}
+
+// mergeLoadKeys copies the allowlisted numeric keys from the dedicated
+// monitors. A failing monitor simply contributes nothing.
+func mergeLoadKeys(sys map[string]any) {
+	monitors := map[string]monitor.Monitor{
+		"memory": &monitor.MemoryMonitor{},
+		"cpu":    &monitor.CPUMonitor{},
+	}
+	for name, m := range monitors {
+		data, err := m.Snapshot()
+		if err != nil {
+			continue
+		}
+		copyAllowed(sys, name, data)
+	}
+}
+
+// copyAllowed copies only the allowlisted keys of one monitor's snapshot.
+func copyAllowed(sys map[string]any, name string, data map[string]any) {
+	for _, k := range loadKeys[name] {
+		if v, ok := data[k]; ok {
+			sys[k] = v
+		}
+	}
 }
 
 // topCPUProcess extracts the #1 CPU process (name + cpu%) from ProcessMonitor.

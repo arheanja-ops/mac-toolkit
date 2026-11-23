@@ -1,6 +1,9 @@
 package monitor
 
-import "os/exec"
+import (
+	"os/exec"
+	"time"
+)
 
 // cmdC builds an exec.Command that forces the C locale.
 //
@@ -14,3 +17,13 @@ func cmdC(name string, args ...string) *exec.Cmd {
 	c.Env = append(c.Environ(), "LC_ALL=C")
 	return c
 }
+
+// runCmd runs a command (C locale) and returns its stdout. It is a package var
+// so tests can feed synthetic tool output instead of touching the real machine;
+// every monitor that parses system tools goes through it.
+var runCmd = func(name string, args ...string) ([]byte, error) {
+	return cmdC(name, args...).Output()
+}
+
+// nowFn is the clock used to derive uptime; injectable for deterministic tests.
+var nowFn = time.Now

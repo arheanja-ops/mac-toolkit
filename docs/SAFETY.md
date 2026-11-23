@@ -21,7 +21,7 @@ repositorio (archivos citados entre paréntesis).
 
 ### (a) `doctor`, análisis y monitores son solo lectura
 
-`doctor`, `analyze`, `status`, `battery`, `system`, `processes`, `network` y
+`doctor`, `analyze`, `status`, `battery`, `system`, `memory`, `cpu`, `processes`, `network` y
 `report` únicamente **leen** métricas del sistema (`df`, `ioreg`, `pmset`,
 `system_profiler`, `WalkDir`). No crean, modifican ni eliminan archivos
 (`analyze --save` solo escribe su propio reporte en `reports/`).
@@ -31,6 +31,11 @@ repositorio (archivos citados entre paréntesis).
   `Warning` o `Unknown` es lectura pura: no cambia ninguna configuración térmica ni
   de energía. Ante salida irreconocible el estado es `Unknown`, nunca una alarma.
   (`internal/monitor/thermal.go` — `parseThermal`, `IsThermalAlert`)
+- **Vistas Memory y CPU (v1.8.0).** `memory`, `cpu` y las acciones `Memory`/`CPU` de la
+  TUI (`m`/`u`/`r`) solo ejecutan `vm_stat`, `sysctl`, `memory_pressure`, `top`, `ps` y
+  `pmset` (sin shell) y formatean el resultado. No envían señales ni matan procesos, no
+  escriben nada y no tienen teclas que muten. Agrupan por aplicación y no muestran PIDs
+  ni rutas. (`internal/monitor/memory.go`, `internal/monitor/cpu.go`, `internal/tui/memory_view.go`)
 - **`doctor` con IA.** Con `GROQ_API_KEY` el diagnóstico se pide a Groq, pero solo
   se envían **agregados** (tamaños y conteos por dominio, métricas de sistema, nombre
   y % del proceso más caliente): nunca rutas, nombres de archivo ni PIDs; la
@@ -172,7 +177,7 @@ contenedores conservados, y esos rechazos se informan como fallos.
 | Acción | Por defecto | Para ejecutar |
 |--------|-------------|---------------|
 | `analyze` / `status` / monitores / `doctor` | solo lectura | — (nunca borra) |
-| TUI — Analyze/Status/monitores/Preview/Last report | solo lectura | — (nunca borra) |
+| TUI — Analyze/Status/monitores (incl. vistas Memory y CPU)/Preview/Doctor/Last report | solo lectura | — (nunca borra ni envía señales a procesos) |
 | TUI — Clean (solo items `safe`) | preview/selección | selección explícita + confirmación `si` (blacklist + audit) |
 | `clean` | dry-run (preview) | `--execute` + aprobación + confirmación `si` |
 | Estados térmicos (`system`, header, `mac_system`) | solo lectura | — (nunca modifica nada) |

@@ -16,7 +16,7 @@ func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 	data := map[string]any{}
 
 	// Hardware info from system_profiler
-	if out, err := cmdC("system_profiler", "SPHardwareDataType", "-json").Output(); err == nil {
+	if out, err := runCmd("system_profiler", "SPHardwareDataType", "-json"); err == nil {
 		var prof map[string]any
 		if json.Unmarshal(out, &prof) == nil {
 			if items, ok := prof["SPHardwareDataType"].([]any); ok && len(items) > 0 {
@@ -31,7 +31,7 @@ func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 	}
 
 	// CPU usage from top
-	if out, err := cmdC("top", "-l", "1", "-n", "0", "-s", "0").Output(); err == nil {
+	if out, err := runCmd("top", "-l", "1", "-n", "0", "-s", "0"); err == nil {
 		reCPU := regexp.MustCompile(`CPU usage:\s+([\d.]+)% user,\s+([\d.]+)% sys`)
 		if m := reCPU.FindStringSubmatch(string(out)); len(m) > 2 {
 			user, _ := strconv.ParseFloat(m[1], 64)
@@ -40,45 +40,25 @@ func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 		}
 	}
 
-	// Memory from vm_stat
-	if out, err := cmdC("vm_stat").Output(); err == nil {
-		raw := string(out)
-		pageSize := int64(16384) // default for Apple Silicon
-		rePS := regexp.MustCompile(`page size of (\d+) bytes`)
-		if m := rePS.FindStringSubmatch(raw); len(m) > 1 {
-			ps, _ := strconv.ParseInt(m[1], 10, 64)
-			if ps > 0 {
-				pageSize = ps
-			}
-		}
-
-		active := vmStatVal(raw, "Pages active")
-		inactive := vmStatVal(raw, "Pages inactive")
-		wired := vmStatVal(raw, "Pages wired down")
-		compressed := vmStatVal(raw, "Pages occupied by compressor")
-		free := vmStatVal(raw, "Pages free")
-
-		used := (active + wired + compressed) * pageSize
-		total := (active + inactive + wired + compressed + free) * pageSize
-
-		data["memory_used_gb"] = float64(used) / (1024 * 1024 * 1024)
-		data["memory_total_gb"] = float64(total) / (1024 * 1024 * 1024)
-		if total > 0 {
-			data["memory_percent"] = float64(used) * 100 / float64(total)
+	// Memory: same helper as MemoryMonitor so every screen shows one number
+	// (Activity Monitor's definition: App + Wired + Compressed).
+	if u, err := readMemUsage(); err == nil {
+		data["memory_used_gb"] = float64(u.usedBytes) / gibBytes
+		data["memory_total_gb"] = float64(u.totalBytes) / gibBytes
+		if u.totalBytes > 0 {
+			data["memory_percent"] = u.pct()
 		}
 	}
 
 	// Swap from sysctl
-	if out, err := cmdC("sysctl", "vm.swapusage").Output(); err == nil {
-		reSwap := regexp.MustCompile(`total\s*=\s*([\d.]+)M\s+used\s*=\s*([\d.]+)M`)
-		if m := reSwap.FindStringSubmatch(string(out)); len(m) > 2 {
-			data["swap_total_mb"], _ = strconv.ParseFloat(m[1], 64)
-			data["swap_used_mb"], _ = strconv.ParseFloat(m[2], 64)
+	if out, err := runCmd("sysctl", "vm.swapusage"); err == nil {
+		if total, used, ok := parseSwapUsage(string(out)); ok {
+			data["swap_total_mb"], data["swap_used_mb"] = total, used
 		}
 	}
 
 	// Thermal from pmset
-	if out, err := cmdC("pmset", "-g", "therm").Output(); err == nil {
+	if out, err := runCmd("pmset", "-g", "therm"); err == nil {
 		data["thermal"] = parseThermal(string(out))
 	} else {
 		data["thermal"] = ThermalUnknown

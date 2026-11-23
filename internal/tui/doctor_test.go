@@ -94,9 +94,9 @@ func TestDoctorKeyDRunsAndFillsViewport(t *testing.T) {
 		m := sizedModel()
 		nm, cmd := m.Update(keyRunes('d'))
 		m = nm.(model)
-		if !m.running || cmd == nil || !m.doctorOpen {
-			t.Fatalf("'d' should start the doctor: running=%v cmd=%v open=%v",
-				m.running, cmd != nil, m.doctorOpen)
+		if !m.running || cmd == nil || m.openView != viewDoctor {
+			t.Fatalf("'d' should start the doctor: running=%v cmd=%v open=%d",
+				m.running, cmd != nil, m.openView)
 		}
 		_, rightW, _ := m.paneGeometry()
 		out, err := runDoctor(rightW)
@@ -124,15 +124,15 @@ func TestDoctorKeyRRefreshesOnlyWhenOpen(t *testing.T) {
 	if _, cmd := m.Update(keyRunes('r')); cmd != nil {
 		t.Fatal("'r' outside the Doctor panel must not run anything")
 	}
-	m.doctorOpen = true
+	m.openView = viewDoctor
 	nm, cmd := m.Update(keyRunes('r'))
 	if cmd == nil || !nm.(model).running {
 		t.Fatal("'r' in the Doctor panel should re-run it")
 	}
 	// Launching another action leaves the Doctor panel.
 	nm, _ = m.Update(keyRunes('a'))
-	if nm.(model).doctorOpen {
-		t.Fatal("running another action should clear doctorOpen")
+	if nm.(model).openView != viewNone {
+		t.Fatal("running another action should clear openView")
 	}
 }
 

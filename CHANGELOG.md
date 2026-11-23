@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-23
+
+### Added
+- **Vistas dedicadas de Memory y CPU** (solo lectura): comandos `mac-toolkit memory` y
+  `mac-toolkit cpu`, acciones `Memory`/`CPU` en el grupo Monitors de la TUI y atajos
+  `m`/`u`. `r` refresca la vista abierta (Doctor, Memory o CPU); el refresco es solo
+  manual. Memory muestra uso, nivel de presión, desglose, swap con tráfico desde el
+  arranque, uptime y top 5 apps por RAM; CPU muestra user/sys/idle, load 1/5/15 con
+  ratio por núcleo y veredicto, núcleos P/E, estado térmico y top 5 apps por CPU. Las
+  apps se agregan por aplicación y nunca se muestran PIDs ni rutas.
+- **Insights nuevos en `doctor`** (sección PERFORMANCE, CLI/TUI/`--json`): CPU
+  saturada, tiempo de kernel elevado y paginación intensa, con textos prudentes. El
+  snapshot suma solo números (`load_per_core`, `cpu_user_pct`, `cpu_sys_pct`,
+  `swap_thrash`, `memory_pressure_level`).
+- Clasificadores puros con umbrales documentados en `internal/monitor/classify.go`.
+
+### Changed
+- **La memoria usada ahora sigue la definición de Monitor de Actividad**: App Memory
+  (Anonymous − Purgeable) + Wired + Compressed, sobre `hw.memsize`. Antes era
+  `active + wired + compressed`. `system`, el header de la TUI, `mac_system`, Memory y
+  Doctor comparten el mismo cálculo, así que las cifras coinciden (y pueden ser menores
+  que antes).
+- El footer de la TUI incluye `m memory · u cpu`; en modo compacto (< 90 columnas) se
+  abrevia (`p prev`, `m mem`) y omite `/ filtrar`.
+- Los tests de la TUI ya no ejecutan los monitores reales (suite más rápida).
+
 ## [1.7.2] - 2026-11-23
 
 ### Security

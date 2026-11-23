@@ -11,8 +11,8 @@ import (
 )
 
 // doctorLabel is the left-panel label of the Doctor action. The model compares
-// against it (instead of a control flag on actionItem) to know the Doctor panel
-// is open, which is what lets 'r' refresh it.
+// against it (instead of a control flag on actionItem) via viewForLabel, which
+// is what lets 'r' refresh the open panel.
 const doctorLabel = "Doctor"
 
 // Below this usable width the emoji headings and the disk bar are dropped:

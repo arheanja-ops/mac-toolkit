@@ -26,6 +26,8 @@ The binary is called `toolkit`. It uses **cobra** for command routing.
 | `mac-toolkit report`     | Show saved reports                                 |
 | `mac-toolkit battery`    | Battery health monitor                             |
 | `mac-toolkit system`     | CPU, memory, swap, thermal monitor                 |
+| `mac-toolkit memory`     | RAM used (Activity Monitor definition), pressure, swap, top apps |
+| `mac-toolkit cpu`        | CPU split, load per core, P/E cores, thermal, top apps |
 | `mac-toolkit processes`  | Top processes by CPU and memory                    |
 | `mac-toolkit network`    | WiFi, connections, connectivity monitor            |
 
@@ -47,7 +49,7 @@ When `toolkit` is invoked without a subcommand, display an interactive menu usin
 commands grouped by category:
 
 - **Disk Cleanup**: analyze, clean, full, status, report
-- **System Monitors**: battery, system, processes, network
+- **System Monitors**: battery, system, memory, cpu, processes, network (all read-only)
 
 ### 1.3 Disk Analyzers
 
@@ -80,6 +82,8 @@ central registry. The runner executes all (or a filtered set) in parallel using
 | ----------- | -------------------------------------- | ------------------------------------------------- |
 | `battery`   | `ioreg`, `pmset`                       | Health %, cycles, temperature, voltage, time left  |
 | `system`    | `gopsutil`, `system_profiler`          | Model, CPU%, memory, swap, thermal state           |
+| `memory`    | `vm_stat`, `sysctl`, `memory_pressure`, `ps` | Used (App+Wired+Compressed), pressure, swap, swap in/out, uptime, top 5 apps by RAM |
+| `cpu`       | `top -l 2`, `sysctl`, `pmset`, `ps` | user/sys/idle, load 1/5/15, load per core, P/E cores, thermal, top 5 apps by CPU |
 | `processes` | `gopsutil`                             | Top 10 by CPU, top 10 by memory                   |
 | `network`   | `gopsutil`, `airport` (`/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport`) | WiFi SSID, signal, stats, active connections, connectivity |
 

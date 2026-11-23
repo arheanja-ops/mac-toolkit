@@ -32,6 +32,7 @@ func Heuristic(snap AISnapshot) Diagnosis {
 	}
 
 	d.Performance = performanceInsights(snap)
+	d.Performance = append(d.Performance, loadInsights(snap)...)
 	if disk := diskInsight(snap); disk != nil {
 		// Disk pressure is a performance/urgency signal, grouped with it.
 		d.Performance = append(d.Performance, *disk)
@@ -65,6 +66,41 @@ func performanceInsights(snap AISnapshot) []Insight {
 				snap.ThermalState, snap.TopCPUProcess.CPUPct),
 			Action:   fmt.Sprintf("Revisa el proceso %q; si no lo necesitas, ciérralo para bajar la temperatura.", procLabel(snap.TopCPUProcess.Name)),
 			Severity: SevMed,
+		})
+	}
+	return out
+}
+
+// loadInsights covers CPU and paging findings. Thresholds live in the monitor
+// package (the CLI and TUI views classify with the same functions). The wording
+// is deliberately cautious: these are symptoms, the cause is not known, and no
+// action is ever taken automatically.
+func loadInsights(snap AISnapshot) []Insight {
+	var out []Insight
+	if monitor.ClassifyLoadRatio(snap.LoadPerCore) == monitor.LoadSaturated {
+		out = append(out, Insight{
+			Title: "CPU saturada",
+			Detail: fmt.Sprintf("La carga de 5 min es %.1f veces el número de núcleos.",
+				snap.LoadPerCore),
+			Action:   "Revisa en la vista CPU (tecla u) qué apps consumen más y cierra las que no necesites.",
+			Severity: SevHigh,
+		})
+	}
+	if monitor.HighKernelTime(snap.CPUSysPct, snap.CPUUserPct) {
+		out = append(out, Insight{
+			Title: "Tiempo de kernel elevado",
+			Detail: fmt.Sprintf("El sistema usa %.0f%% de CPU frente a %.0f%% de las apps. "+
+				"Puede deberse a paginación o a agentes de seguridad.", snap.CPUSysPct, snap.CPUUserPct),
+			Action:   "Compara las vistas CPU (u) y Memory (m); si persiste, un reinicio suele ayudar.",
+			Severity: SevMed,
+		})
+	}
+	if snap.SwapThrash {
+		out = append(out, Insight{
+			Title:    "Paginación intensa",
+			Detail:   "El swap está casi lleno y se ha escrito mucho a disco desde el arranque.",
+			Action:   "Puede indicar falta de RAM: revisa la vista Memory (m) y cierra apps pesadas o reinicia.",
+			Severity: SevHigh,
 		})
 	}
 	return out

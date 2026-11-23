@@ -44,6 +44,8 @@ func buildActions() []actionItem {
 		{label: "Select & clean", group: "Clean", openClean: true},
 		{label: "Battery", group: "Monitors", run: monitorRunner(&monitor.BatteryMonitor{})},
 		{label: "System", group: "Monitors", run: monitorRunner(&monitor.SystemMonitor{})},
+		{label: memoryLabel, group: "Monitors", run: runMemory},
+		{label: cpuLabel, group: "Monitors", run: runCPU},
 		{label: "Processes", group: "Monitors", run: monitorRunner(&monitor.ProcessMonitor{})},
 		{label: "Network", group: "Monitors", run: monitorRunner(&monitor.NetworkMonitor{})},
 		{label: "Last report", group: "Reports", run: runLastReport},

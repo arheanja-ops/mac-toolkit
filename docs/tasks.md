@@ -183,10 +183,22 @@ Makefile, build verification, final cleanup.
 
 ---
 
-## Phase 13: Higiene pendiente
+## Phase 13: Vistas Memory y CPU (v1.8.0)
 
-- [ ] **13.1** `gofmt -l` marca `internal/analyzer/*`, `internal/docker/ops.go` e `internal/tui/helpers_test.go`: PR de formato puro
-- [ ] **13.2** Versión del servidor MCP: `cmd/mcp.go` anuncia `Version: "1.0.0"` fija en `mcp.Implementation` (no sigue la versión del binario)
+- [x] **13.1** `internal/monitor`: `MemoryMonitor`, `CPUMonitor`, `runCmd` inyectable, agregación por app (sin PIDs/rutas)
+- [x] **13.2** Clasificadores puros (`classify.go`) con tests de tabla en los bordes
+- [x] **13.3** Una sola definición de memoria usada (Monitor de Actividad) para `system`, header, Memory y Doctor
+- [x] **13.4** Comandos `memory` y `cpu` (`cmd/monitors.go`)
+- [x] **13.5** TUI: acciones Memory/CPU, atajos `m`/`u`, `openView` + `r`, footer compacto, 80x24
+- [x] **13.6** Doctor: 3 reglas nuevas + campos numéricos en `AISnapshot` (con test de privacidad)
+- [x] **13.7** Spec `docs/specs/2026-11-23-tui-memory-cpu.md`, README, CHANGELOG y guías
+
+---
+
+## Phase 14: Higiene pendiente
+
+- [ ] **14.1** `gofmt -l` marca `internal/analyzer/*`, `internal/docker/ops.go` e `internal/tui/helpers_test.go`: PR de formato puro
+- [ ] **14.2** Versión del servidor MCP: `cmd/mcp.go` anuncia `Version: "1.0.0"` fija en `mcp.Implementation` (no sigue la versión del binario)
 
 ---
 
