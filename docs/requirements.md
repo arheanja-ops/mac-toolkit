@@ -3,6 +3,11 @@
 Go CLI for macOS supervision, disk cleanup, and system optimization.
 Replaces `mac-toolkit-pro` (Python) with a single static binary.
 
+> **Status (v1.7.1).** Sections 1–4 keep the original v1.0 requirements as written
+> (history). Where the shipped code differs, section 5 lists the divergences;
+> sections 1.9–1.12 add the requirements for work delivered after v1.0 (TUI,
+> doctor/AI, safety gates, MCP). Source of truth for flags: `mac-toolkit <cmd> --help`.
+
 ---
 
 ## 1. Functional Requirements
@@ -138,6 +143,64 @@ All prompts accept Spanish and English affirmatives: `s`, `si`, `sí`, `y`, `yes
 - Blacklist is enforced at the cleaner layer, independent of analyzers.
 - Every session generates an `audit.json` entry for traceability.
 
+### 1.9 Interactive TUI (`internal/tui`) — delivered v1.3.0 → v1.7.0
+
+- `mac-toolkit` with no subcommand (and `mac-toolkit tui`) opens a two-pane TUI
+  (Bubble Tea): action list (Disk, Clean, Monitors, Reports, Session) and a
+  scrollable detail pane, with a live header (disk, memory, CPU, thermal) refreshed
+  every 2 seconds. `mac-toolkit menu` keeps the linear promptui menu as a fallback.
+- Keys (normal mode): `↑↓` move, `Tab` switch pane, `⏎` run, `/` filter, `a` analyze,
+  `p` preview, `c` clean selection, `d` doctor, `r` refresh doctor, `q`/`Ctrl+C`/`Esc`
+  quit.
+- Interactive clean: checkbox list where only `safe` items are markable
+  (`space` toggle, `a` all safe, `n` none, `⏎` continue, `Esc` cancel), then a
+  modal that requires typing `si` before anything is deleted.
+- Must stay usable at 80x24 (tested: no line wider than 80 columns, frame ≤ 24 rows).
+- Doctor panel: PERFORMANCE / QUICK WINS / REQUIERE REVISIÓN groups, read-only.
+
+### 1.10 Doctor and AI (`internal/ai`) — delivered v1.4.0 (CLI/MCP), v1.7.0 (TUI)
+
+- `mac-toolkit doctor [--no-ai] [--json]` runs all analyzers and monitors and
+  returns a prioritized `Diagnosis` (performance, quick wins, review). Strictly
+  read-only.
+- Privacy by construction: the snapshot sent to any model contains aggregates only
+  (sizes per domain, severity, counts, system metrics, hottest process name and %).
+  No paths, file names, repo names or PIDs.
+- Engines: Groq (OpenAI-compatible, `net/http`, 20 s timeout) when `GROQ_API_KEY` is
+  set and `--no-ai` is not; otherwise — or on any AI failure — a deterministic
+  heuristic engine. AI errors are never surfaced to the user.
+- Env: `GROQ_API_KEY`, `GROQ_MODEL` (default `openai/gpt-oss-20b`),
+  `GROQ_BASE_URL` (default `https://api.groq.com/openai/v1`).
+- The `disk` domain is context only and never counts as reclaimable space.
+
+### 1.11 Safety gates (see `docs/SAFETY.md`)
+
+- `clean --execute` requires, after the approval mode, a final confirmation that
+  shows the item count and total size and accepts only an unambiguous affirmative
+  (`core.IsAffirmative`: `si`/`sí`/`yes`/`y`). Anything else, including EOF, aborts.
+- The TUI deletes only items with `Risk == safe && SafeToDelete`, after explicit
+  selection and the same affirmative gate; it aborts entirely if a non-safe item is
+  marked, uses the cleaner (blacklist) and writes the audit log.
+- `doctor`, analyzers, monitors, `Preview` and the Doctor panel never modify the
+  system.
+- Thermal states (`Normal`, `Throttled`, `Warning`, `Unknown`) are read-only and only
+  `Throttled`/`Warning` count as an alert; unknown output must never raise an alarm.
+
+### 1.12 MCP server
+
+- `mac-toolkit mcp` (stdio) exposes 12 tools: 9 read-only (`mac_analyze`,
+  `mac_battery`, `mac_system`, `mac_processes`, `mac_network`, `mac_status`,
+  `mac_clean_preview`, `mac_docker_compact`, `mac_doctor`), 2 destructive
+  (`mac_clean_batch`, `mac_docker_cleanup`) and `mac_docker_backup`, which writes a
+  dump to `~/docker-backups/` without deleting.
+- Destructive tools default to `dry_run=true`: an omitted flag is a dry-run and only
+  an explicit `dry_run=false` deletes (`isDryRun`).
+
+### 1.13 Docker operations
+
+- `mac-toolkit docker backup <container>`, `docker cleanup --keep a,b [--execute]`
+  (dry-run by default) and `docker compact`.
+
 ---
 
 ## 2. Non-Functional Requirements
@@ -184,3 +247,22 @@ is attack surface and maintenance burden.
 - GUI or web interface
 - Auto-update mechanism
 - Remote/networked cleanup
+
+---
+
+## 5. Divergences between the original requirements and v1.7.1
+
+| Original text | Shipped state (v1.7.1) |
+| ------------- | ---------------------- |
+| Binary called `toolkit` | Command is `mac-toolkit` (`go install`, release); `make build` still writes `bin/toolkit` |
+| No subcommand → huh/bubbletea menu | No subcommand → two-pane TUI; the menu is `mac-toolkit menu` (promptui) |
+| "Global flags" `--execute`, `--domain`, `--mode`, `--save`, `--last`, `--timeout` | Per-command flags: `analyze` (`--domain`, `--min-size`, `--save`), `clean` (`--domain`, `--execute`, `--mode`), `full` (`--execute`, `--mode`), `report` (`--last`), `doctor` (`--no-ai`, `--json`); only `-v/--verbose` is global |
+| Go 1.22+ | `go 1.25.0` in `go.mod` |
+| Parallelism via errgroup; default timeout 120 s | goroutines + `sync.Mutex` (`core.RunAnalyzers`); timeout 180 s (`core.AnalyzerTimeoutSeconds`) |
+| Dependencies: gopsutil, huh, tablewriter, uuid, testify | Not used. Direct deps: cobra, bubbletea, lipgloss, bubbles, promptui, go-isatty, MCP go-sdk; stdlib tests |
+| Reporter `terminal` via lipgloss + tablewriter | Own ANSI/terminal reporter (`internal/reporter/terminal.go`) |
+| `audit.json` append-only | One `audit.json` per cleanup session in `reports/cleanup_<timestamp>/` |
+| Report filename `report-<ts>.md` | `reports/analysis_<ts>/report.md` and `report.json` |
+| Test coverage ≥ 80 % | Not met: 31.3 % `internal/core`, 63.9 % `internal/cleaner` (measured with `go test -cover`) |
+| Out of scope: "GUI or web interface" | Still no GUI/web; the terminal TUI (section 1.9) is in scope |
+| Spanish/English affirmatives `s`, `si`, `sí`, `y`, `yes` in all prompts | Per-mode approval prompts accept `s`/`si`/`sí`/`y`/`yes` (`internal/core/approval.go`); the final deletion gate and the TUI modal accept only `si`/`sí`/`yes`/`y` (not bare `s`) |

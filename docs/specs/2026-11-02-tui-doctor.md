@@ -1,7 +1,7 @@
 # TUI-3 — Panel Doctor dentro del TUI — Design Spec
 
 **Date:** 2026-11-02
-**Status:** Approved (decisiones del usuario incorporadas; sin dudas abiertas)
+**Status:** Implemented (v1.7.0)
 **Scope:** mac-toolkit CLI (`internal/tui/`, extrae el armado de snapshot a `internal/ai`; reutiliza `ai.Diagnose`)
 **Roadmap:** sigue a [TUI-2](2026-11-01-tui-clean.md). Fase TUI-3. Depende de [AI Doctor](2026-09-09-ai-doctor.md).
 

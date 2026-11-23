@@ -22,9 +22,10 @@ which mac-toolkit && mac-toolkit --version
 ```
 
 > If a client can't resolve `mac-toolkit` from `PATH`, use the absolute path instead
-> (`$(go env GOPATH)/bin/mac-toolkit`, `/usr/local/bin/toolkit`, or `./bin/toolkit`).
+> (`$(go env GOPATH)/bin/mac-toolkit`; or `./bin/toolkit` / `/usr/local/bin/toolkit` if you built with `make build` / `make install`).
 
-The server is **local and read-safe by default**: destructive tools require an
+The server is **local and read-safe by default**: the destructive tools
+(`mac_clean_batch`, `mac_docker_cleanup`) are `dry_run=true` unless the call passes an
 explicit `dry_run=false`. No tokens or network bridge are needed.
 
 ---
@@ -163,12 +164,20 @@ Any client that speaks MCP over stdio can use:
 
 ## Available tools
 
-Read-only / safe (never delete): `mac_analyze`, `mac_battery`, `mac_system`,
-`mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
-`mac_docker_compact`.
+The server exposes **12 tools** (source: `mcp.AddTool` in `cmd/mcp.go`).
 
-Destructive (dry-run by default; require explicit `dry_run=false`):
-`mac_clean_batch`, `mac_docker_cleanup`, `mac_docker_backup`.
+Read-only (9, never delete or write): `mac_analyze`, `mac_battery`, `mac_system`,
+`mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
+`mac_docker_compact`, `mac_doctor`.
+
+Destructive (2, `dry_run=true` by default; only an explicit `dry_run=false`
+deletes): `mac_clean_batch`, `mac_docker_cleanup`.
+
+Writes a file, deletes nothing (1, no `dry_run` parameter): `mac_docker_backup`
+(dumps a running container's database to `~/docker-backups/`).
+
+Tip: auto-approve only the 9 read-only tools in your client and keep manual approval
+for the other three.
 
 ---
 

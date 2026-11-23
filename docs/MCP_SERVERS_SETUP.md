@@ -297,7 +297,7 @@ Ver: https://awslabs.github.io/mcp/
 | `aws-eks` | `uvx awslabs.eks-mcp-server@latest` | EKS clusters | Stdio directo |
 | `aws-sns-sqs` | `uvx awslabs.amazon-sns-sqs-mcp-server@latest` | Colas y notificaciones | Stdio directo |
 | `backstage` | `node backstage-mcp-bridge.js` | 5 (catalog, artifacts, drift, envvars) | Bridge HTTP→Stdio |
-| `mac-toolkit` | `/path/to/bin/toolkit mcp` | 7 (disk, battery, system, procs, net) | Stdio directo |
+| `mac-toolkit` | `mac-toolkit mcp` | 12 (disk, battery, system, procs, net, status, clean, docker, doctor) | Stdio directo |
 
 ---
 
@@ -319,4 +319,4 @@ Para cada server:
 
 ---
 
-*Última actualización: 2026-08-28*
+*Última actualización: 2026-08-28 (fila de `mac-toolkit` actualizada a v1.7.1: 12 tools)*

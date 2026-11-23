@@ -8,6 +8,7 @@ Guía de referencia para el Mac Toolkit: CLI nativa en Go para supervisión, lim
 
 1. [Instalación](#instalación)
 2. [Uso por CLI](#uso-por-cli)
+   - [TUI interactiva](#tui-interactiva-estilo-k9s) · [`doctor`](#diagnóstico-doctor)
 3. [MCP Server — Uso desde Chat](#mcp-server--uso-desde-chat)
 4. [Configuración en Kiro Desktop (IDE)](#configuración-en-kiro-desktop-ide)
 5. [Configuración en Kiro CLI](#configuración-en-kiro-cli)
@@ -20,6 +21,7 @@ Guía de referencia para el Mac Toolkit: CLI nativa en Go para supervisión, lim
 12. [Skills Kiro](#skills-kiro)
 13. [Desarrollo y extensibilidad](#desarrollo-y-extensibilidad)
 14. [Troubleshooting](#troubleshooting)
+15. [Flujo de contribución y release](#flujo-de-contribución-y-release)
 
 ---
 
@@ -45,20 +47,81 @@ make build     # genera ./bin/toolkit
 
 ```bash
 mac-toolkit --help
-mac-toolkit status    # lista dominios registrados
+mac-toolkit --version  # con go install @vX.Y.Z muestra la versión (commit/fecha: none/unknown)
+mac-toolkit status     # lista dominios registrados
 ```
+
+`--version` (`cmd/root.go`): los binarios del release traen versión, commit y fecha
+inyectados por GoReleaser; con `go install ...@vX.Y.Z` la versión se lee de
+`runtime/debug.ReadBuildInfo()` y commit/fecha quedan como `none`/`unknown`.
 
 ---
 
 ## Uso por CLI
 
-### Menú interactivo
+### TUI interactiva (estilo k9s)
 
 ```bash
-mac-toolkit          # sin argumentos abre el menú
+mac-toolkit          # sin argumentos abre la TUI de dos paneles
+mac-toolkit tui      # equivalente explícito
 ```
 
-El menú es interactivo con navegación por flechas (↑↓, promptui), agrupado en secciones **Disk**, **Monitors** y **Reports**. Incluye una opción dedicada `Cleanup preview (dry-run, shows risks)` para revisar qué se puede limpiar sin borrar nada.
+Tras una pantalla de bienvenida (banner + resumen del sistema), la TUI muestra:
+
+- **Header en vivo** (refresco cada 2 s): disco, memoria, CPU y estado térmico.
+- **Panel izquierdo** — acciones: Disk (Analyze, Status, Doctor), Clean (Preview,
+  Select & clean), Monitors (Battery, System, Processes, Network), Reports (Last
+  report) y Session (Quit / Salir).
+- **Panel derecho** — resultado de la acción, con scroll. Responsive hasta 80x24.
+
+| Modo | Teclas |
+|------|--------|
+| Normal | `↑↓` mover · `Tab` cambiar panel · `⏎` ejecutar · `/` filtrar · `a` Analyze · `p` Preview · `c` modo selección de limpieza · `d` Doctor · `r` refrescar Doctor (si está abierto) · `q`/`Ctrl+C`/`Esc` salir |
+| Selección de limpieza | `↑↓` (o `k`/`j`) mover · `espacio` marcar · `a` todos los `safe` · `n` ninguno · `⏎` continuar · `Esc` cancelar |
+| Confirmación | escribir `si` + `⏎` borra; `Esc` u otra entrada cancela |
+
+**Limpieza en la TUI.** Solo los items `safe` (`Risk == safe` y `SafeToDelete`) son
+marcables; `warn`/`danger` se muestran atenuados con su razón y no se pueden marcar.
+Al continuar aparece el modal "si": sin un afirmativo inequívoco no se borra nada.
+El borrado usa el mismo cleaner (con blacklist) y escribe el mismo audit log que el
+CLI (`approval_mode: tui-select`). `Preview` es dry-run y nunca borra. Detalle en
+[`docs/SAFETY.md`](docs/SAFETY.md).
+
+**Panel Doctor.** `d` (o la acción Doctor) ejecuta el diagnóstico y lo muestra en
+tres grupos: PERFORMANCE, QUICK WINS y REQUIERE REVISIÓN, más el contexto de disco y
+el motor usado. Solo lectura; cada pulsación re-analiza sin caché.
+
+### Menú lineal (fallback)
+
+```bash
+mac-toolkit menu     # menú con flechas (promptui): Disk, Monitors, Reports
+```
+
+Incluye la opción `Cleanup preview (dry-run, shows risks)` para revisar qué se puede limpiar sin borrar nada.
+
+### Diagnóstico: `doctor`
+
+```bash
+mac-toolkit doctor            # plan priorizado (performance / quick wins / revisión)
+mac-toolkit doctor --no-ai    # fuerza el motor heurístico determinista
+mac-toolkit doctor --json     # Diagnosis como JSON por stdout, para scripting
+```
+
+`doctor` ejecuta todos los analyzers y monitores, arma un agregado **sin PII** y lo
+convierte en un diagnóstico priorizado. Es **estrictamente solo lectura**: nunca
+borra ni ejecuta acciones.
+
+- **Motor:** usa Groq si `GROQ_API_KEY` está definida y no se pasó `--no-ai`; si no
+  hay clave, o la llamada falla o excede 20 s, cae en silencio al motor heurístico.
+- **Variables:** `GROQ_API_KEY` (sin default → heurístico), `GROQ_MODEL` (default
+  `openai/gpt-oss-20b`), `GROQ_BASE_URL` (default
+  `https://api.groq.com/openai/v1`, endpoint OpenAI-compatible).
+- **Privacidad:** al usar IA solo se envían agregados (tamaños por dominio,
+  severidad, conteos, métricas de CPU/memoria/swap/térmico y el nombre y % del
+  proceso más caliente). Nunca rutas, nombres de archivo, nombres de repos ni PIDs
+  (`internal/ai/snapshot.go`). El dominio `disk` es solo contexto y no cuenta como
+  espacio recuperable.
+- **Disponible en:** CLI, TUI (`d`) y la tool MCP `mac_doctor`.
 
 ### Comandos de análisis
 
@@ -67,6 +130,7 @@ mac-toolkit analyze                          # Análisis completo (11 dominios e
 mac-toolkit analyze --domain browser         # Solo caches de navegador
 mac-toolkit analyze --domain docker          # Solo Docker
 mac-toolkit analyze --save                   # Guardar reporte MD + JSON en reports/
+mac-toolkit analyze --min-size 100           # Umbral de archivos grandes (MB, default 50)
 ```
 
 ### Comandos de limpieza
@@ -83,11 +147,29 @@ mac-toolkit clean --execute --domain logs    # Solo logs
 mac-toolkit full --execute                   # Analizar + guardar + limpiar
 ```
 
+Con `--execute`, tras la aprobación por modo se exige una **confirmación final**:
+el CLI muestra el número de elementos y el tamaño total y hay que escribir `si`
+(`si`/`sí`/`yes`/`y`). Cualquier otra entrada, incluida una línea vacía o EOF, aborta
+sin borrar.
+
+### Docker
+
+```bash
+mac-toolkit docker backup <contenedor>       # Dump de BD (postgres/mysql) a ~/docker-backups/
+mac-toolkit docker cleanup --keep a,b        # Dry-run: elimina todo salvo esos contenedores
+mac-toolkit docker cleanup --keep a,b --execute   # Borra de verdad
+mac-toolkit docker compact                   # Docker.raw: tamaño virtual vs uso real
+```
+
+> `docker cleanup --execute` no pasa por el gate `si` del `clean` ni por la
+> blacklist/audit del cleaner: la única protección es el dry-run por defecto y
+> `--keep`. Revisa siempre el dry-run primero.
+
 ### Monitors
 
 ```bash
 mac-toolkit battery      # Salud, ciclos, temperatura, voltaje
-mac-toolkit system       # CPU, memoria, swap, estado térmico, modelo
+mac-toolkit system       # CPU, memoria, swap, estado térmico (Normal/Throttled/Warning/Unknown), modelo
 mac-toolkit processes    # Top 10 por CPU + top 10 por memoria
 mac-toolkit network      # WiFi, tráfico, conexiones, conectividad
 ```
@@ -98,6 +180,7 @@ mac-toolkit network      # WiFi, tráfico, conexiones, conectividad
 mac-toolkit status           # Dominios y niveles de riesgo
 mac-toolkit report --last    # Ver último reporte guardado
 mac-toolkit mcp              # Iniciar MCP server (stdio)
+mac-toolkit completion zsh   # Autocompletado de shell (bash|zsh|fish|powershell)
 ```
 
 ---
@@ -139,7 +222,7 @@ Crear `.kiro/settings/mcp.json` en el directorio del proyecto:
 }
 ```
 
-Esto hace que las 11 herramientas estén disponibles en **cualquier agente** cuando trabajas en este workspace.
+Esto hace que las 12 herramientas estén disponibles en **cualquier agente** cuando trabajas en este workspace.
 
 ### Opción 2: MCP global (disponible en todos los proyectos)
 
@@ -220,30 +303,39 @@ kiro-cli chat    # arranca directamente con mac-ops
 
 ## Herramientas MCP disponibles
 
-El toolkit expone **11 herramientas** MCP: 8 de solo lectura / seguras y 3 destructivas (con `dry_run=true` por defecto).
+El toolkit expone **12 herramientas** MCP (fuente: `mcp.AddTool` en `cmd/mcp.go`):
+9 de solo lectura, 2 destructivas con `dry_run=true` por defecto y 1 que escribe un
+archivo sin borrar nada.
 
-### Solo lectura / seguras (8)
+### Solo lectura (9)
 
 | Herramienta | Descripción | Parámetros |
 |-------------|-------------|------------|
 | `mac_analyze` | Análisis de disco completo o por dominio. Retorna JSON con severidad, tamaño, items, y riesgo por dominio. | `domain` (opcional): browser, docker, ollama, logs, dev_caches, xcode, repos, downloads, appsupport, trash, disk |
 | `mac_battery` | Batería: salud %, ciclos, temperatura °C, voltaje V, carga actual, tiempo restante, estado de carga. | — |
-| `mac_system` | Sistema: modelo, chip, cores, RAM, CPU %, memoria usada/total, swap, estado térmico. | — |
+| `mac_system` | Sistema: modelo, chip, cores, RAM, CPU %, memoria usada/total, swap, estado térmico (Normal/Throttled/Warning/Unknown). | — |
 | `mac_processes` | Top 10 procesos por CPU y top 10 por memoria, con PID, RSS, y memory pressure. | — |
 | `mac_network` | Red: WiFi SSID/señal/canal, bytes enviados/recibidos, conexiones activas, check de conectividad. | — |
 | `mac_status` | Lista todos los dominios registrados con su nivel de riesgo (safe/warn/danger). | — |
 | `mac_clean_preview` | Preview de limpieza: items seguros vs inseguros, tamaños, razones. Nunca borra nada. | `domain` (opcional) |
 | `mac_docker_compact` | Analiza `Docker.raw` (tamaño virtual vs uso real) y da instrucciones para recuperar espacio. No modifica nada. | — |
+| `mac_doctor` | Diagnóstico priorizado (performance, quick_wins, review) + contexto de disco y bytes recuperables seguros. Groq si hay `GROQ_API_KEY`; si no, heurístico. Sin PII. | `no_ai` (opcional): fuerza el motor heurístico |
 
-### Destructivas — `dry_run=true` por defecto (3)
+### Destructivas — `dry_run=true` por defecto (2)
 
-Estas herramientas requieren confirmación explícita del usuario y solo ejecutan cambios reales con `dry_run=false`.
+Solo un `dry_run=false` **explícito** ejecuta borrados (`isDryRun(nil) == true`);
+el agente debe pedir confirmación al usuario antes.
 
 | Herramienta | Descripción | Parámetros |
 |-------------|-------------|------------|
-| `mac_clean_batch` | Ejecuta limpieza por lotes. Con `dry_run=true` (default) solo muestra el plan; con `dry_run=false` borra. | `dry_run` (default true), `domain` (opcional) |
-| `mac_docker_cleanup` | Limpieza de recursos Docker (imágenes/contenedores/volúmenes). `dry_run=true` por defecto. | `dry_run` (default true) |
-| `mac_docker_backup` | Backup de datos Docker antes de operaciones destructivas. `dry_run=true` por defecto. | `dry_run` (default true) |
+| `mac_clean_batch` | Limpieza por lotes de items `safe_to_delete`. Con `dry_run=true` (default) solo muestra el plan; con `dry_run=false` borra. Dominios válidos: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport. | `domains` (lista, opcional; vacío = todos), `dry_run` (default true) |
+| `mac_docker_cleanup` | Elimina recursos Docker (contenedores, imágenes, volúmenes) excepto los de `keep`. | `keep` (requerido, nombres separados por coma), `dry_run` (default true) |
+
+### Escribe un archivo, no borra (1)
+
+| Herramienta | Descripción | Parámetros |
+|-------------|-------------|------------|
+| `mac_docker_backup` | Dump de la BD de un contenedor **en ejecución** (detecta postgres/mysql por imagen; `pg_dumpall`/`mysqldump`) y lo verifica. Escribe en `~/docker-backups/`. No tiene `dry_run`. | `container` (requerido) |
 
 ### Ejemplo de respuesta de `mac_analyze`
 
@@ -258,7 +350,7 @@ Estas herramientas requieren confirmación explícita del usuario y solo ejecuta
       "summary": "Browser caches: 450.2 MB across 3 browsers",
       "items": [
         {
-          "path": "/Users/jaime/Library/Caches/Google/Chrome",
+          "path": "/Users/<usuario>/Library/Caches/Google/Chrome",
           "size": "280.5 MB",
           "label": "Chrome cache",
           "safe_to_delete": true,
@@ -302,6 +394,7 @@ Estas herramientas requieren confirmación explícita del usuario y solo ejecuta
 ### System
 - **Fuente**: `system_profiler SPHardwareDataType -json`, `top`, `vm_stat`, `sysctl`, `pmset -g therm`
 - **Métricas**: modelo, chip, cores, RAM, CPU %, memoria usada/total/%, swap, estado térmico
+- **Estado térmico** (`internal/monitor/thermal.go`): `Normal` (sin avisos o `CPU_Speed_Limit` = 100), `Throttled` (`CPU_Speed_Limit` < 100), `Warning` (nivel de aviso realmente registrado) o `Unknown` (salida vacía/irreconocible o `pmset` falló). Solo `Throttled` y `Warning` son alerta; es lectura pura
 - **Colores CPU**: 🟢 <60%, 🟡 <85%, 🔴 ≥85%
 - **Colores Memoria**: 🟢 <70%, 🟡 <90%, 🔴 ≥90%
 
@@ -338,8 +431,17 @@ Estos paths están protegidos y nunca se borran:
 - `/System`, `/usr`, `/bin`, `/sbin`, `/private/var/db`
 - `com.apple.dock`, `com.apple.finder`, `com.apple.spotlight`
 
+### Confirmación final "si"
+Con `--execute`, `clean` exige además escribir `si` tras ver el número exacto de elementos y el tamaño total. La TUI usa el mismo gate (`core.IsAffirmative`) en su modal.
+
+### TUI
+Solo borra items `safe`, tras selección explícita y confirmación `si`; pasa por la blacklist y escribe audit log. `Preview` y el panel Doctor nunca borran.
+
+### `doctor` y monitores
+Solo lectura (CLI, TUI y `mac_doctor`). Con IA solo se envían agregados, nunca rutas ni PIDs.
+
 ### Audit log
-Cada sesión de limpieza genera `audit.json` con:
+Cada sesión de limpieza real (CLI y TUI) genera un `audit.json` en `reports/cleanup_<fecha_hora>/` con:
 - UUID de sesión
 - Usuario que ejecutó
 - Flag dry-run
@@ -347,7 +449,9 @@ Cada sesión de limpieza genera `audit.json` con:
 - Lista de eliminaciones con resultado (success/failure/skipped)
 
 ### MCP: seguro por defecto
-De las 11 herramientas MCP, 8 son de solo lectura (análisis, monitoreo, preview) y nunca modifican el disco. Las 3 destructivas (`mac_clean_batch`, `mac_docker_cleanup`, `mac_docker_backup`) usan `dry_run=true` por defecto: solo muestran el plan y requieren `dry_run=false` con confirmación explícita del usuario para ejecutar cambios reales.
+De las 12 herramientas MCP, 9 son de solo lectura (análisis, monitoreo, preview, doctor) y nunca modifican el disco. Las 2 destructivas (`mac_clean_batch`, `mac_docker_cleanup`) usan `dry_run=true` por defecto: solo muestran el plan y requieren `dry_run=false` explícito, con confirmación del usuario, para ejecutar cambios reales. `mac_docker_backup` escribe un dump en `~/docker-backups/` y no borra nada.
+
+> Matices verificados en el código: `mac_clean_batch` borra a través del cleaner (blacklist activa) pero no escribe audit log; `docker cleanup` (CLI y MCP) no pasa por el cleaner ni por el gate `si`. Ver [`docs/SAFETY.md`](docs/SAFETY.md).
 
 ---
 
@@ -409,7 +513,7 @@ O usar el skill: `/add-analyzer mianalyzer`
 1. Crear `internal/monitor/mimonitor.go`
 2. Implementar la interfaz `Monitor` (Name, Snapshot, Display)
 3. Agregar cobra command en `cmd/monitors.go`
-4. Agregar entrada en `cmd/menu.go`
+4. Agregar entrada en `cmd/menu.go` (menú lineal) y, para la TUI, una acción en `internal/tui/actions.go` (`buildActions`)
 
 O usar el skill: `/add-monitor mimonitor`
 
@@ -478,21 +582,25 @@ mac-toolkit/
 ├── main.go                    # Entry point
 ├── cmd/                       # Cobra CLI
 │   ├── root.go               # Root command + verbose flag
-│   ├── menu.go               # Menú interactivo
+│   ├── tui.go                # comando tui (default) + comando menu
+│   ├── menu.go               # menú lineal promptui
+│   ├── doctor.go             # doctor (--no-ai, --json)
+│   ├── docker.go             # docker backup/cleanup/compact
 │   ├── analyze.go            # analyze + runAnalysis() + saveReports()
 │   ├── clean.go              # clean + approval flow
 │   ├── full.go               # full (analyze + save + clean)
 │   ├── status.go             # status (dominios + riesgos)
 │   ├── report.go             # report --last
 │   ├── monitors.go           # battery, system, processes, network
-│   └── mcp.go                # MCP server (11 tools, stdio transport)
+│   └── mcp.go                # MCP server (12 tools, stdio transport)
 ├── internal/
 │   ├── core/                  # Fundamentos
 │   │   ├── config.go         # Paths, thresholds, blacklists
 │   │   ├── models.go         # CleanableItem, AnalysisResult, types
 │   │   ├── runner.go         # Parallel execution (goroutines)
 │   │   ├── logger.go         # ANSI styled output
-│   │   └── approval.go       # 4-mode approval engine
+│   │   ├── approval.go       # 4-mode approval engine
+│   │   └── affirmative.go    # IsAffirmative: gate "si" compartido CLI/TUI
 │   ├── analyzer/              # 11 domain analyzers
 │   │   ├── analyzer.go       # Interface + DirSize, FileAge, MakeResult
 │   │   ├── registry.go       # Global registry + Register/All/ByDomain
@@ -501,7 +609,11 @@ mac-toolkit/
 │   │                         # xcode, trash
 │   ├── monitor/               # 4 system monitors
 │   │   ├── monitor.go        # Interface
+│   │   ├── thermal.go        # parseThermal + IsThermalAlert
 │   │   └── *.go              # battery, system, processes, network
+│   ├── tui/                   # TUI Bubble Tea (2 paneles, clean, doctor)
+│   ├── ai/                    # doctor: snapshot sin PII, heurístico, Groq, collect
+│   ├── docker/                # backup, cleanup, compact
 │   ├── cleaner/               # Cleanup engine
 │   │   ├── cleaner.go        # Interface + blacklist + Delete()
 │   │   └── generic.go        # GenericCleaner
@@ -512,12 +624,20 @@ mac-toolkit/
 │   ├── agents/               # mac-ops, mac-toolkit-dev
 │   ├── skills/               # 6 skills
 │   └── steering/             # Project conventions
-└── docs/                      # Design docs
-    ├── requirements.md
-    ├── design.md
-    └── tasks.md
+└── docs/                      # requirements, design, tasks, SAFETY,
+                               # RELEASE_WORKFLOW, specs/, guías MCP
 ```
 
 ---
 
-*Mac Toolkit v1.0 — Go CLI + MCP para macOS*
+## Flujo de contribución y release
+
+Cada cambio va por PR (`git switch -c <tipo>/<nombre>` → PR → CI verde → merge
+squash); nunca a `main` directo. Una versión se publica con un tag `vX.Y.Z` sobre
+`main` que dispara GoReleaser (binarios darwin arm64/amd64). Los PRs solo de
+documentación se mergean sin tag ni release. Detalle y checklist en
+[`docs/RELEASE_WORKFLOW.md`](docs/RELEASE_WORKFLOW.md).
+
+---
+
+*Mac Toolkit v1.7 — Go CLI + TUI + `doctor` + MCP para macOS*

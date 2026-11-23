@@ -162,3 +162,26 @@ server unificado no la incluye.
   (`Token has expired and refresh failed`).
 - Tras hacer login SSO: reiniciar Kiro Crew y confirmar que `aws-api` aparece
   Online con sus 2 tools. Probar prompt: "lista mis instancias EC2 en eu-west-1".
+
+---
+
+## Cierre — línea de tiempo v1.2.0 → v1.7.1 (2026-11-23)
+
+Nota de cierre; la bitácora de arriba es histórica y no se modifica. Estado vigente:
+README.md, CHANGELOG.md y `docs/SESSION_NEXT_STEPS.md`.
+
+| Versión | Fecha (tag) | Hito |
+|---------|-------------|------|
+| v1.2.0 | 2026-09-08 | Banner, menú agrupado, reporter con barras; comando `mac-toolkit` |
+| v1.3.0 | 2026-09-21 | TUI estilo k9s (dos paneles, header en vivo) |
+| v1.3.1 | 2026-09-21 | Bienvenida, acción Salir, total reclaimable sin `disk` |
+| v1.3.2 | 2026-09-21 | Fix de timeout del analyzer `repos` |
+| v1.4.0 | 2026-11-01 | `doctor` (Groq + heurístico) y tool MCP `mac_doctor` (12 tools) |
+| v1.5.0 | 2026-11-01 | Rediseño del TUI, confirmación final `si` en `clean`, `docs/SAFETY.md` |
+| v1.6.0 | 2026-11-01 | TUI-2: clean interactivo con gate `si` |
+| v1.6.1 | 2026-11-02 | TUI responsivo en 80x24 |
+| v1.7.0 | 2026-11-20 | TUI-3: panel Doctor |
+| v1.7.1 | 2026-11-23 | Fix térmico (Normal/Throttled/Warning/Unknown) y `--version` con `go install` |
+
+Cambios respecto a lo descrito arriba: hoy el servidor MCP expone **12 tools** y la
+suite tiene **108 tests** de nivel superior (167 contando subtests), no 19.
