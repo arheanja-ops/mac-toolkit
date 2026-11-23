@@ -47,8 +47,10 @@ func TestHeuristic_Thermal(t *testing.T) {
 		want    bool
 	}{
 		{"warning + hot cpu", "Warning", 55, true},
+		{"throttled + hot cpu", "Throttled", 55, true},
 		{"warning + cool cpu", "Warning", 10, false},
 		{"normal + hot cpu", "Normal", 90, false},
+		{"unknown + hot cpu", "Unknown", 90, false},
 		{"nominal + hot cpu", "nominal", 90, false},
 		{"empty + hot cpu", "", 90, false},
 	}

@@ -110,14 +110,13 @@ func renderHeader(version string, disk core.DiskSnapshot, s headerStats, width i
 	return out
 }
 
-// renderThermal colors the thermal field: any non-normal state (Warning,
-// critical, etc.) is shown in the alert style so it draws the eye; a healthy
-// "Normal"/"Nominal" reading stays muted like the other labels.
+// renderThermal colors the thermal field: only real alerts (Throttled,
+// Warning) use the alert style. Normal and Unknown stay muted so a missing
+// reading never looks like a problem.
 func renderThermal(state string) string {
 	glyph := "🌡 " + state
-	lower := strings.ToLower(state)
-	if lower == "normal" || lower == "nominal" || lower == "ok" {
-		return hdrLabelStyle.Render(glyph)
+	if monitor.IsThermalAlert(state) {
+		return thermalAlertStyle.Render(glyph)
 	}
-	return thermalAlertStyle.Render(glyph)
+	return hdrLabelStyle.Render(glyph)
 }
