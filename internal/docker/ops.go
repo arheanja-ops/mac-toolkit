@@ -25,17 +25,6 @@ type BackupResult struct {
 	Error          string `json:"error,omitempty"`
 }
 
-// CleanupResult holds the result of a selective docker cleanup
-type CleanupResult struct {
-	DeletedContainers []string `json:"deleted_containers"`
-	DeletedImages     []string `json:"deleted_images"`
-	DeletedVolumes    []string `json:"deleted_volumes"`
-	BuildCacheFreed   string   `json:"build_cache_freed"`
-	Kept              []string `json:"kept"`
-	DryRun            bool     `json:"dry_run"`
-	Error             string   `json:"error,omitempty"`
-}
-
 // CompactResult holds Docker disk compaction analysis
 type CompactResult struct {
 	RawSize          int64  `json:"raw_size_bytes"`
@@ -167,98 +156,6 @@ func Backup(container string) BackupResult {
 	}
 }
 
-// Cleanup removes all Docker resources except the kept containers and their deps
-func Cleanup(keepNames []string, dryRun bool) CleanupResult {
-	result := CleanupResult{DryRun: dryRun, Kept: keepNames}
-
-	// Get all containers
-	out, err := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}").Output()
-	if err != nil {
-		result.Error = fmt.Sprintf("docker ps failed: %v", err)
-		return result
-	}
-	allContainers := nonEmpty(strings.Split(strings.TrimSpace(string(out)), "\n"))
-
-	// Build keep set
-	keepSet := make(map[string]bool)
-	for _, k := range keepNames {
-		keepSet[strings.TrimSpace(k)] = true
-	}
-
-	// Find images and volumes to keep
-	keepImages := make(map[string]bool)
-	keepVolumes := make(map[string]bool)
-	for _, name := range keepNames {
-		info, err := inspectContainer(name)
-		if err != nil {
-			continue
-		}
-		keepImages[info.Image] = true
-		for _, v := range info.Volumes {
-			keepVolumes[v] = true
-		}
-	}
-
-	// Containers to delete
-	for _, c := range allContainers {
-		if !keepSet[c] {
-			result.DeletedContainers = append(result.DeletedContainers, c)
-			if !dryRun {
-				exec.Command("docker", "rm", "-f", c).Run()
-			}
-		}
-	}
-
-	// Images to delete
-	imgOut, _ := exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}}").Output()
-	allImages := nonEmpty(strings.Split(strings.TrimSpace(string(imgOut)), "\n"))
-	for _, img := range allImages {
-		if !keepImages[img] {
-			// Also check without tag
-			repo := strings.Split(img, ":")[0]
-			if !keepImages[repo] {
-				result.DeletedImages = append(result.DeletedImages, img)
-				if !dryRun {
-					exec.Command("docker", "rmi", img).Run()
-				}
-			}
-		}
-	}
-
-	// Volumes to delete
-	volOut, _ := exec.Command("docker", "volume", "ls", "-q").Output()
-	allVolumes := nonEmpty(strings.Split(strings.TrimSpace(string(volOut)), "\n"))
-	for _, v := range allVolumes {
-		if !keepVolumes[v] {
-			result.DeletedVolumes = append(result.DeletedVolumes, v)
-			if !dryRun {
-				exec.Command("docker", "volume", "rm", v).Run()
-			}
-		}
-	}
-
-	// Build cache
-	if !dryRun {
-		out, err := exec.Command("docker", "builder", "prune", "-a", "-f").Output()
-		if err == nil {
-			result.BuildCacheFreed = extractReclaimedSize(string(out))
-		}
-	} else {
-		// Get reclaimable size for preview
-		out, _ := exec.Command("docker", "system", "df", "--format", "{{.Type}}\t{{.Reclaimable}}").Output()
-		for _, line := range strings.Split(string(out), "\n") {
-			if strings.HasPrefix(line, "Build Cache") {
-				parts := strings.Split(line, "\t")
-				if len(parts) > 1 {
-					result.BuildCacheFreed = parts[1] + " (reclaimable)"
-				}
-			}
-		}
-	}
-
-	return result
-}
-
 // Compact analyzes Docker.raw vs actual usage and recommends a new disk limit
 func Compact() CompactResult {
 	rawPath := core.DockerRawPath
@@ -329,7 +226,13 @@ func Compact() CompactResult {
 // --- helpers ---
 
 func inspectContainer(name string) (ContainerInfo, error) {
-	out, err := exec.Command("docker", "inspect", name).Output()
+	return inspectWith(ExecRunner{}, name)
+}
+
+// inspectWith reads container metadata through r so planning can be tested
+// without a real Docker daemon.
+func inspectWith(r Runner, name string) (ContainerInfo, error) {
+	out, err := r.Run("inspect", name)
 	if err != nil {
 		return ContainerInfo{}, fmt.Errorf("docker inspect %s: %w", name, err)
 	}
@@ -422,13 +325,4 @@ func parseDockerSize(s string) int64 {
 	default:
 		return int64(val)
 	}
-}
-
-func extractReclaimedSize(output string) string {
-	for _, line := range strings.Split(output, "\n") {
-		if strings.Contains(strings.ToLower(line), "reclaimed") {
-			return strings.TrimSpace(line)
-		}
-	}
-	return "unknown"
 }

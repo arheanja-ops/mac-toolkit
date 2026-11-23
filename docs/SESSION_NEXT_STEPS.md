@@ -1,7 +1,15 @@
 # 📍 DÓNDE VAMOS — Punto de retomada
 
 **Última actualización:** 2026-11-23
-**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.7.1**
+**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.7.2**
+
+## ✅ Resuelto en v1.7.2
+
+- **Gates de seguridad en borrados (SAFETY.md g):** `docker cleanup --execute` ahora
+  muestra el plan, exige "si" y escribe audit log; los errores de docker se informan.
+  Las tools MCP destructivas exigen opt-in (`MAC_TOOLKIT_MCP_ALLOW_DELETE=1`) y
+  `confirm_plan` = `plan_digest`; `mac_clean_batch` y `mac_docker_cleanup` escriben
+  audit log.
 
 ## ✅ Resuelto en v1.7.1
 
@@ -23,9 +31,9 @@
    12, falta `mac_doctor`) y su lista `allowedTools` no incluye `mac_doctor`.
 3. **Versión del servidor MCP:** `cmd/mcp.go` anuncia `Version: "1.0.0"` fija en
    `mcp.Implementation`; conviene que siga la versión del binario.
-4. **Huecos de seguridad documentados:** `docker cleanup --execute` y
-   `mac_docker_cleanup` no pasan por el gate `si`, la blacklist ni el audit log
-   (ver `docs/SAFETY.md`, apartado g); `mac_clean_batch` no escribe audit log.
+4. **Agentes `.kiro/agents/*.json`:** sus prompts y `allowedTools` deben conocer el
+   parámetro `confirm_plan` y el opt-in `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` de las tools
+   MCP destructivas (v1.7.2). Va en el PR de agentes del punto 2.
 
 ## 🎯 Roadmap (por blast radius creciente)
 
@@ -64,12 +72,13 @@ confirmar los nombres exactos de los contadores con los comandos reales.
 | v1.6.1 | 2026-11-02 | TUI responsivo en 80 columnas + feedback "✓ Listo" |
 | v1.7.0 | 2026-11-20 | TUI-3: panel Doctor (`d`, `r` refresca) + `internal/ai/collect.go` |
 | v1.7.1 | 2026-11-23 | Fix falso positivo térmico + `--version` con `go install` |
+| v1.7.2 | 2026-11-23 | Gates de seguridad: Docker cleanup (plan + "si" + audit) y MCP destructivo (opt-in + `confirm_plan` + audit) |
 
 ## 🔒 Seguridad (ver docs/SAFETY.md)
 
 `doctor`, `analyze` y monitores: solo lectura. `clean`: dry-run por defecto →
 `--execute` → aprobación → confirmación "si". TUI: solo borra items `safe`, con modal
-"si", blacklist y audit log. MCP: tools destructivas con `dry_run=true` por defecto.
+"si", blacklist y audit log. MCP: tools destructivas con `dry_run=true` por defecto, opt-in del servidor y `confirm_plan`. Docker cleanup: plan + "si" + audit.
 
 ## 📋 Flujo (recordatorio)
 

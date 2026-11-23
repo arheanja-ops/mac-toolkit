@@ -37,12 +37,36 @@ El toolkit expone **12 herramientas** MCP (fuente: `mcp.AddTool` en `cmd/mcp.go`
 
 ### Destructivas — `dry_run=true` por defecto (2)
 
-Solo un `dry_run=false` **explícito** ejecuta borrados; si el parámetro se omite, es dry-run. Pide confirmación al usuario antes de invocarlas con `dry_run=false`.
+Si `dry_run` se omite, es preview y devuelve un `plan_digest`. Un `dry_run=false` solo ejecuta si el servidor tiene `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` **y** se pasa `confirm_plan` igual al `plan_digest` vigente; si no, se rechaza. Ver [habilitar borrados](#habilitar-borrados-por-mcp-opt-in-del-humano).
 
 | # | Tool | Descripción | Parámetros |
 |---|------|-------------|------------|
-| 10 | `mac_clean_batch` | Limpieza por lotes de items `safe_to_delete`. Con `dry_run=true` (default) solo muestra el plan; `dry_run=false` borra. | `domains` (lista, opcional; vacío = todos), `dry_run` (default true) |
-| 11 | `mac_docker_cleanup` | Elimina recursos Docker excepto los de `keep`. | `keep` (requerido), `dry_run` (default true) |
+| 10 | `mac_clean_batch` | Limpieza por lotes de items `safe_to_delete`. Con `dry_run=true` (default) solo muestra el plan; `dry_run=false` borra. | `domains` (lista, opcional; vacío = todos), `dry_run` (default true), `confirm_plan` (requerido con `dry_run=false`) |
+| 11 | `mac_docker_cleanup` | Elimina recursos Docker excepto los de `keep`. | `keep` (requerido), `dry_run` (default true), `confirm_plan` (requerido con `dry_run=false`) |
+
+#### Habilitar borrados por MCP (opt-in del humano)
+
+Por defecto las tools destructivas **rechazan** `dry_run=false`. Para permitirlas, añade
+la variable `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` al bloque `env` del servidor en tu
+configuración MCP (solo tú puedes hacerlo; el agente no puede):
+
+```json
+{
+  "mcpServers": {
+    "mac-toolkit": {
+      "command": "mac-toolkit",
+      "args": ["mcp"],
+      "env": { "MAC_TOOLKIT_MCP_ALLOW_DELETE": "1" }
+    }
+  }
+}
+```
+
+Flujo seguro: (1) preview con `dry_run=true` → devuelve `plan_digest`; (2) revisas el
+plan; (3) `dry_run=false` + `confirm_plan=<plan_digest>`. Si el estado cambió entre
+preview y ejecución, el digest ya no coincide y se rechaza. Cada ejecución real escribe
+un audit log (`approval_mode: "mcp"`). Sin la variable, usa la terminal:
+`mac-toolkit docker cleanup --keep X --execute` / `mac-toolkit clean --execute`.
 
 ### Escribe un archivo, no borra (1)
 

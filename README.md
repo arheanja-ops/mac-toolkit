@@ -208,7 +208,8 @@ pintan ni cuentan como tal. Es lectura pura: no modifica nada del sistema.
 - **TUI** — analiza y monitorea; solo borra items `safe`, tras selección explícita
   y el modal `si`, con blacklist y audit log
 - **`doctor`** — estrictamente solo lectura (CLI, TUI y MCP)
-- **MCP** — las tools destructivas usan `dry_run=true` por defecto
+- **MCP** — las tools destructivas usan `dry_run=true` por defecto y exigen opt-in (`MAC_TOOLKIT_MCP_ALLOW_DELETE=1`) + `confirm_plan`
+- **Docker** — `docker cleanup --execute` muestra el plan, exige confirmación `si` y escribe audit log
 - **Audit log** JSON por sesión con UUID (`clean` y TUI)
 
 > Garantías completas y verificables (qué es solo lectura, qué requiere
@@ -273,12 +274,12 @@ Solo lectura (9) — nunca borran ni escriben:
 | `mac_docker_compact` | Docker.raw: tamaño virtual vs uso real + instrucciones | — |
 | `mac_doctor` | Diagnóstico priorizado (performance / quick wins / revisión); Groq si hay `GROQ_API_KEY`, si no heurístico | `no_ai` (opcional) |
 
-Destructivas (2) — `dry_run=true` por defecto; solo un `dry_run=false` explícito borra:
+Destructivas (2) — `dry_run=true` por defecto (preview + `plan_digest`). `dry_run=false` solo ejecuta con `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` en el servidor **y** `confirm_plan` = `plan_digest` vigente:
 
 | Tool | Descripción | Parámetros |
 |------|-------------|------------|
-| `mac_clean_batch` | Borra solo items `safe_to_delete` en varios dominios | `domains` (opcional), `dry_run` (default `true`) |
-| `mac_docker_cleanup` | Elimina recursos Docker excepto los de `keep` | `keep` (requerido), `dry_run` (default `true`) |
+| `mac_clean_batch` | Borra solo items `safe_to_delete` en varios dominios | `domains` (opcional), `dry_run` (default `true`), `confirm_plan` (requerido con `dry_run=false`) |
+| `mac_docker_cleanup` | Elimina recursos Docker excepto los de `keep` | `keep` (requerido), `dry_run` (default `true`), `confirm_plan` (requerido con `dry_run=false`) |
 
 Escritura sin borrado (1) — **sin** parámetro `dry_run`:
 
@@ -290,6 +291,22 @@ Escritura sin borrado (1) — **sin** parámetro `dry_run`:
 > destructivas requieren confirmación explícita del usuario antes de invocarse con
 > `dry_run=false`, y `mac_docker_backup` escribe un archivo, así que conviene
 > confirmarla también.
+
+**Habilitar borrados por MCP (opt-in).** Sin esto, `dry_run=false` se rechaza. Añade la
+variable al `env` del servidor en tu configuración MCP (solo tú puedes; el agente no):
+
+```json
+"mac-toolkit": {
+  "command": "mac-toolkit",
+  "args": ["mcp"],
+  "env": { "MAC_TOOLKIT_MCP_ALLOW_DELETE": "1" }
+}
+```
+
+Flujo: preview → revisas el plan y su `plan_digest` → `dry_run=false` con
+`confirm_plan=<plan_digest>`. Si el estado cambió, se rechaza. Cada ejecución real
+escribe un audit log (`mcp`). Alternativa en terminal:
+`mac-toolkit docker cleanup --keep X --execute` / `mac-toolkit clean --execute`.
 
 ### Configurar en Kiro
 

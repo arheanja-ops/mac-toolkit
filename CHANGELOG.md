@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-11-23
+
+### Security
+- **`docker cleanup --execute` had no human gate.** It ran `docker rm -f`, `rmi`,
+  `volume rm` and `builder prune -a -f` with only the flag, no confirmation, no audit
+  log, and ignored every exec error. `internal/docker` now separates `Plan` (read-only:
+  what is removed, what is kept, reclaimable build cache) from `Apply` (executes only
+  the plan, reports each item as success/failure/skipped, never swallows errors) behind
+  an injectable `Runner`. The CLI shows the full plan, highlights volumes
+  ("pueden contener datos"), requires a typed affirmative (`core.IsAffirmative`) and
+  writes an audit log (`docker-cli`). An empty or unknown `--keep` container aborts
+  the plan instead of leaving its volumes unprotected.
+- **MCP destructive tools deleted without a technical gate.** `mac_docker_cleanup` and
+  `mac_clean_batch` with `dry_run=false` now require the server to run with
+  `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` (set by the human in the MCP client `env`) and a
+  `confirm_plan` equal to the `plan_digest` of the plan recomputed at that moment.
+  Previews return `plan_digest`. Both tools write an audit log (`mcp`) and return
+  per-item results including failures.
+
+### Changed
+- **Behavior change (MCP):** destructive MCP tools no longer execute on `dry_run=false`
+  alone. Without the opt-in env var they return an error pointing to the terminal
+  commands; without a matching `confirm_plan` they refuse and ask for a new preview.
+  Agents and clients must pass `confirm_plan` and the human must enable the opt-in.
+- `mac_docker_cleanup` output is now `{dry_run, plan, plan_digest, results, ...}`
+  (was `deleted_containers`/`deleted_images`/`deleted_volumes`).
+
 ## [1.7.1] - 2026-11-23
 
 ### Fixed

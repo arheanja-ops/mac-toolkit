@@ -323,13 +323,13 @@ archivo sin borrar nada.
 
 ### Destructivas — `dry_run=true` por defecto (2)
 
-Solo un `dry_run=false` **explícito** ejecuta borrados (`isDryRun(nil) == true`);
+Solo un `dry_run=false` **explícito** puede ejecutar borrados (`isDryRun(nil) == true`), y además requiere `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` en el servidor y `confirm_plan` = `plan_digest` de la preview (ver `docs/SAFETY.md`);
 el agente debe pedir confirmación al usuario antes.
 
 | Herramienta | Descripción | Parámetros |
 |-------------|-------------|------------|
-| `mac_clean_batch` | Limpieza por lotes de items `safe_to_delete`. Con `dry_run=true` (default) solo muestra el plan; con `dry_run=false` borra. Dominios válidos: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport. | `domains` (lista, opcional; vacío = todos), `dry_run` (default true) |
-| `mac_docker_cleanup` | Elimina recursos Docker (contenedores, imágenes, volúmenes) excepto los de `keep`. | `keep` (requerido, nombres separados por coma), `dry_run` (default true) |
+| `mac_clean_batch` | Limpieza por lotes de items `safe_to_delete`. Con `dry_run=true` (default) solo muestra el plan; con `dry_run=false` borra. Dominios válidos: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport. | `domains` (lista, opcional; vacío = todos), `dry_run` (default true), `confirm_plan` (requerido con `dry_run=false`) |
+| `mac_docker_cleanup` | Elimina recursos Docker (contenedores, imágenes, volúmenes) excepto los de `keep`. | `keep` (requerido, nombres separados por coma), `dry_run` (default true), `confirm_plan` (requerido con `dry_run=false`) |
 
 ### Escribe un archivo, no borra (1)
 
@@ -449,9 +449,9 @@ Cada sesión de limpieza real (CLI y TUI) genera un `audit.json` en `reports/cle
 - Lista de eliminaciones con resultado (success/failure/skipped)
 
 ### MCP: seguro por defecto
-De las 12 herramientas MCP, 9 son de solo lectura (análisis, monitoreo, preview, doctor) y nunca modifican el disco. Las 2 destructivas (`mac_clean_batch`, `mac_docker_cleanup`) usan `dry_run=true` por defecto: solo muestran el plan y requieren `dry_run=false` explícito, con confirmación del usuario, para ejecutar cambios reales. `mac_docker_backup` escribe un dump en `~/docker-backups/` y no borra nada.
+De las 12 herramientas MCP, 9 son de solo lectura (análisis, monitoreo, preview, doctor) y nunca modifican el disco. Las 2 destructivas (`mac_clean_batch`, `mac_docker_cleanup`) usan `dry_run=true` por defecto: solo muestran el plan (con `plan_digest`); para ejecutar cambios reales requieren `dry_run=false`, el opt-in `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` en el servidor y `confirm_plan` igual al `plan_digest`. `mac_docker_backup` escribe un dump en `~/docker-backups/` y no borra nada.
 
-> Matices verificados en el código: `mac_clean_batch` borra a través del cleaner (blacklist activa) pero no escribe audit log; `docker cleanup` (CLI y MCP) no pasa por el cleaner ni por el gate `si`. Ver [`docs/SAFETY.md`](docs/SAFETY.md).
+> Matices verificados en el código: `mac_clean_batch` borra a través del cleaner (blacklist activa); ambas tools destructivas escriben audit log (`mcp`). `docker cleanup` (CLI) muestra el plan, exige el gate `si` y escribe audit log (`docker-cli`); la blacklist de rutas no aplica a recursos Docker. Ver [`docs/SAFETY.md`](docs/SAFETY.md).
 
 ---
 

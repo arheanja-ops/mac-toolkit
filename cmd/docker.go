@@ -52,40 +52,16 @@ var (
 var dockerCleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Remove all Docker resources except --keep containers",
+	Long: "Shows the exact cleanup plan. Without --execute nothing is deleted. " +
+		"With --execute the plan is shown and a typed affirmative (\"si\") is required; " +
+		"every action is written to an audit log.",
 	Run: func(cmd *cobra.Command, args []string) {
 		keepList := nonEmptyList(cleanupKeep)
 		if len(keepList) == 0 {
 			core.Error("--keep is required (comma-separated container names to preserve)")
 			return
 		}
-
-		dryRun := !cleanupExecute
-		if dryRun {
-			core.Info("Dry-run mode — nothing will be deleted. Pass --execute to delete.")
-		} else {
-			core.Warn("Execute mode — deletions are permanent!")
-		}
-
-		result := docker.Cleanup(keepList, dryRun)
-		if result.Error != "" {
-			core.Error("Cleanup failed: %s", result.Error)
-			return
-		}
-
-		fmt.Println()
-		fmt.Printf("  Kept:               %s\n", strings.Join(result.Kept, ", "))
-		fmt.Printf("  Containers removed: %d %s\n", len(result.DeletedContainers), nameList(result.DeletedContainers))
-		fmt.Printf("  Images removed:     %d %s\n", len(result.DeletedImages), nameList(result.DeletedImages))
-		fmt.Printf("  Volumes removed:    %d %s\n", len(result.DeletedVolumes), nameList(result.DeletedVolumes))
-		fmt.Printf("  Build cache:        %s\n", result.BuildCacheFreed)
-
-		if dryRun {
-			fmt.Println()
-			core.Info("This was a dry-run. Run with --execute to apply.")
-		} else {
-			fmt.Println()
-			core.Success("Cleanup complete!")
-		}
+		runDockerCleanup(keepList, cleanupExecute, docker.ExecRunner{})
 	},
 }
 
@@ -130,14 +106,4 @@ func nonEmptyList(csv string) []string {
 		}
 	}
 	return out
-}
-
-func nameList(names []string) string {
-	if len(names) == 0 {
-		return ""
-	}
-	if len(names) <= 5 {
-		return "(" + strings.Join(names, ", ") + ")"
-	}
-	return fmt.Sprintf("(%s, ... +%d more)", strings.Join(names[:3], ", "), len(names)-3)
 }

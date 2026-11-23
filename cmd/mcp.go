@@ -10,7 +10,6 @@ import (
 
 	"github.com/arheanja-ops/mac-toolkit/internal/ai"
 	"github.com/arheanja-ops/mac-toolkit/internal/analyzer"
-	"github.com/arheanja-ops/mac-toolkit/internal/cleaner"
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/docker"
 	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
@@ -85,7 +84,7 @@ func runMCPServer() {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mac_docker_cleanup",
-		Description: "Remove all Docker resources except specified containers and their images/volumes. Returns preview by default (dry_run=true). Set dry_run=false to execute deletions.",
+		Description: "Remove all Docker resources except specified containers and their images/volumes. Returns a preview with plan_digest by default (dry_run=true). dry_run=false is refused unless the server runs with MAC_TOOLKIT_MCP_ALLOW_DELETE=1 AND confirm_plan equals the plan_digest of a preview the user reviewed. Writes an audit log.",
 	}, handleDockerCleanup)
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -95,7 +94,7 @@ func runMCPServer() {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "mac_clean_batch",
-		Description: "Clean multiple domains at once. Only deletes safe_to_delete items. Returns preview by default (dry_run=true). Set dry_run=false to execute deletions. Domains: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport.",
+		Description: "Clean multiple domains at once. Only deletes safe_to_delete items. Returns a preview with plan_digest by default (dry_run=true). dry_run=false is refused unless the server runs with MAC_TOOLKIT_MCP_ALLOW_DELETE=1 AND confirm_plan equals the plan_digest of a preview the user reviewed. Writes an audit log. Domains: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport.",
 	}, handleCleanBatch)
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -383,26 +382,7 @@ type DockerBackupInput struct {
 	Container string `json:"container" jsonschema:"required,container name to backup (must be running)"`
 }
 
-type DockerCleanupInput struct {
-	Keep   string `json:"keep" jsonschema:"required,comma-separated container names to preserve"`
-	DryRun *bool  `json:"dry_run,omitempty" jsonschema:"optional,default true — set false to execute deletions"`
-}
-
 type DockerCompactInput struct{}
-
-type CleanBatchInput struct {
-	Domains []string `json:"domains,omitempty" jsonschema:"optional,list of domains to clean (empty = all). Valid: browser, dev_caches, logs, trash, xcode, ollama, downloads, appsupport"`
-	DryRun  *bool    `json:"dry_run,omitempty" jsonschema:"optional,default true — set false to execute deletions"`
-}
-
-type CleanBatchOutput struct {
-	Previewed    []domainItem `json:"previewed_items"`
-	Deleted      []domainItem `json:"deleted_items,omitempty"`
-	FreedBytes   int64        `json:"freed_bytes"`
-	FreedHuman   string       `json:"freed"`
-	SkippedCount int          `json:"skipped_unsafe_count"`
-	DryRun       bool         `json:"dry_run"`
-}
 
 // ---------------------------------------------------------------------------
 // Docker MCP Handlers
@@ -419,105 +399,12 @@ func handleDockerBackup(_ context.Context, _ *mcp.CallToolRequest, input DockerB
 	return nil, result, nil
 }
 
-func handleDockerCleanup(_ context.Context, _ *mcp.CallToolRequest, input DockerCleanupInput) (*mcp.CallToolResult, docker.CleanupResult, error) {
-	if input.Keep == "" {
-		return nil, docker.CleanupResult{}, fmt.Errorf("keep is required (comma-separated container names)")
-	}
-	keepList := strings.Split(input.Keep, ",")
-	for i := range keepList {
-		keepList[i] = strings.TrimSpace(keepList[i])
-	}
-
-	// Dry-run is the safe default: only an explicit dry_run=false executes deletions.
-	dryRun := isDryRun(input.DryRun)
-
-	result := docker.Cleanup(keepList, dryRun)
-	if result.Error != "" {
-		return nil, result, fmt.Errorf("%s", result.Error)
-	}
-	return nil, result, nil
-}
-
 func handleDockerCompact(_ context.Context, _ *mcp.CallToolRequest, _ DockerCompactInput) (*mcp.CallToolResult, docker.CompactResult, error) {
 	result := docker.Compact()
 	if result.Error != "" && result.RawSize == 0 {
 		return nil, result, fmt.Errorf("%s", result.Error)
 	}
 	return nil, result, nil
-}
-
-func handleCleanBatch(_ context.Context, _ *mcp.CallToolRequest, input CleanBatchInput) (*mcp.CallToolResult, CleanBatchOutput, error) {
-	// Run analysis for requested domains
-	var results []core.AnalysisResult
-	if len(input.Domains) == 0 {
-		results = runAnalysisMCP("")
-	} else {
-		for _, d := range input.Domains {
-			r := runAnalysisMCP(strings.TrimSpace(d))
-			if r != nil {
-				results = append(results, r...)
-			}
-		}
-	}
-
-	// Filter safe items only
-	var safeItems []core.CleanableItem
-	var skipped int
-	for _, r := range results {
-		for _, item := range r.Items {
-			if item.SafeToDelete {
-				safeItems = append(safeItems, item)
-			} else {
-				skipped++
-			}
-		}
-	}
-
-	// Build preview
-	preview := make([]domainItem, len(safeItems))
-	for i, item := range safeItems {
-		preview[i] = domainItem{
-			Path:         item.Path,
-			Size:         core.FormatBytes(item.SizeBytes),
-			SizeBytes:    item.SizeBytes,
-			Label:        item.Label,
-			SafeToDelete: true,
-			Risk:         string(item.Risk),
-			Reason:       item.Reason,
-			AgeDays:      item.AgeDays,
-		}
-	}
-
-	dryRun := isDryRun(input.DryRun)
-	output := CleanBatchOutput{
-		Previewed:    preview,
-		SkippedCount: skipped,
-		DryRun:       dryRun,
-	}
-
-	// Execute only when the caller explicitly opted out of dry-run.
-	if !dryRun {
-		gc := cleaner.NewGenericCleaner(false, true)
-		delResults := gc.Clean(safeItems)
-
-		var freed int64
-		var deleted []domainItem
-		for _, dr := range delResults {
-			if dr.Result == "success" {
-				freed += dr.SizeBytes
-				deleted = append(deleted, domainItem{
-					Path:      dr.Path,
-					Size:      core.FormatBytes(dr.SizeBytes),
-					SizeBytes: dr.SizeBytes,
-				})
-			}
-		}
-		output.Deleted = deleted
-		output.FreedBytes = freed
-		output.FreedHuman = core.FormatBytes(freed)
-	}
-
-	return nil, output, nil
 }
 
 // ---------------------------------------------------------------------------
