@@ -1,13 +1,14 @@
 # Guía de Implementación y Ejecución — Mac DevOps Toolkit (CLI Go)
 
-CLI para macOS que cubre limpieza de disco (11 dominios) y monitores de sistema
-(batería, CPU, memoria, red). Este documento cubre cómo **compilar**, **ejecutar**,
+CLI para macOS que cubre limpieza de disco (11 dominios), monitores de sistema
+(batería, CPU, memoria, red), una TUI interactiva estilo k9s, el diagnóstico
+`doctor` (IA opcional) y un servidor MCP. Este documento cubre cómo **compilar**, **ejecutar**,
 **verificar** y **extender** la herramienta, además de las notas de fiabilidad de
 lecturas del sistema.
 
 - Módulo Go: `mac-toolkit`
 - Entrypoint: `main.go` → `cmd.Execute()` (Cobra)
-- Binario: `bin/toolkit`
+- Binario: `bin/toolkit` con `make build`; `mac-toolkit` con `go install` o el release
 
 ---
 
@@ -16,9 +17,10 @@ lecturas del sistema.
 | Requisito | Versión / Nota |
 |---|---|
 | macOS | Apple Silicon (M1/M2/M3) o Intel |
-| Go | 1.22+ (ver `go.mod`) |
+| Go | 1.25+ (`go 1.25.0` en `go.mod`) |
 | Herramientas del sistema | `ps`, `top`, `vm_stat`, `sysctl`, `pmset`, `ioreg`, `netstat`, `route`, `system_profiler` (todas incluidas en macOS) |
 | Docker (opcional) | Solo para el dominio/comandos `docker` |
+| Groq (opcional) | `GROQ_API_KEY` para que `doctor` use IA; sin ella usa el motor heurístico |
 
 No requiere permisos de root para monitores ni análisis. La limpieza sólo escribe
 si se pasa `--execute` explícitamente.
@@ -85,15 +87,28 @@ Verificación rápida tras compilar:
 
 ## 3. Ejecución
 
-### 3.1 Menú interactivo
-Ejecutar sin argumentos abre el menú interactivo (navegación con flechas ↑↓,
-`promptui`), agrupado en secciones **Disk**, **Monitors** y **Reports**. Incluye
-una opción dedicada *Cleanup preview (dry-run, shows risks)* que muestra qué se
-puede limpiar sin borrar nada.
+### 3.1 TUI interactiva (por defecto) y menú lineal
+Ejecutar sin argumentos (o `tui`) abre la **TUI de dos paneles** (Bubble Tea):
+header en vivo (disco, memoria, CPU, estado térmico), lista de acciones a la
+izquierda y resultado con scroll a la derecha. Si no hay TTY, sugiere el menú.
 
 ```bash
-./bin/toolkit
+./bin/toolkit          # TUI
+./bin/toolkit tui      # equivalente
+./bin/toolkit menu     # menú lineal (promptui), agrupado en Disk / Monitors / Reports
 ```
+
+Teclas (modo normal): `↑↓` mover · `Tab` cambiar de panel · `⏎` ejecutar · `/`
+filtrar · `a` Analyze · `p` Preview (dry-run) · `c` selección de limpieza · `d`
+Doctor · `r` refrescar Doctor · `q`/`Ctrl+C`/`Esc` salir.
+
+**Modo clean (`c`).** Lista con checkboxes construida desde un análisis nuevo. Solo
+los items `safe` son marcables (`warn`/`danger` aparecen atenuados con su razón).
+Teclas: `↑↓` mover · `espacio` marcar · `a` todos los seguros · `n` ninguno · `⏎`
+continuar · `Esc` cancelar. Al continuar, el modal pide escribir `si` + `⏎`; sin ese
+afirmativo no se borra nada. El borrado pasa por la blacklist y escribe audit log.
+
+**Doctor (`d`).** Panel PERFORMANCE / QUICK WINS / REQUIERE REVISIÓN, solo lectura.
 
 ### 3.2 Monitores (solo lectura, no modifican nada)
 
@@ -117,7 +132,7 @@ puede limpiar sin borrar nada.
 # Guardar reportes (markdown + JSON)
 ./bin/toolkit analyze --save
 
-# Umbral mínimo de tamaño (MB) para marcar archivos grandes
+# Umbral mínimo de tamaño (MB) para marcar archivos grandes (default 50)
 ./bin/toolkit analyze --min-size 100
 ```
 
@@ -147,21 +162,46 @@ y una leyenda de riesgos. No borra nada en esta fase.
 # Limpiar un dominio concreto
 ./bin/toolkit clean --domain dev_caches
 
-# EJECUCIÓN REAL: tras mostrar el plan, pasa a aprobación interactiva
-# y a una tabla final de confirmación antes de borrar los archivos aprobados
+# EJECUCIÓN REAL: tras mostrar el plan, pasa a aprobación interactiva, a una
+# tabla final y a la confirmación final: hay que escribir "si" (tras ver el
+# número de elementos y el tamaño total) o no se borra nada
 ./bin/toolkit clean --execute
 ```
 
-> Seguridad: `--execute` es la única forma de borrar. Cada ejecución de limpieza
-> escribe un log de auditoría vía `AuditReporter`. Rutas del sistema
+> Seguridad: `--execute` es la única forma de borrar desde el CLI. Cada
+> ejecución de limpieza escribe un log de auditoría vía `AuditReporter`
+> (`reports/cleanup_<fecha_hora>/audit.json`). Rutas del sistema
 > (`/System`, `/usr`, `/bin`, `/sbin`, `/private/var/db`) y bundles críticos de
 > Apple están en lista negra en `internal/core/config.go` y nunca se tocan.
 
 ### 3.5 Docker
 
 ```bash
-./bin/toolkit docker      # operaciones: backup, cleanup, compact
+./bin/toolkit docker backup <contenedor>      # dump postgres/mysql a ~/docker-backups/
+./bin/toolkit docker cleanup --keep a,b       # dry-run (default)
+./bin/toolkit docker cleanup --keep a,b --execute
+./bin/toolkit docker compact                  # Docker.raw: virtual vs uso real
 ```
+
+`docker cleanup --execute` no pasa por el gate `si` ni por el cleaner; revisa el
+dry-run antes.
+
+### 3.5.1 Diagnóstico `doctor` (solo lectura)
+
+```bash
+./bin/toolkit doctor             # plan priorizado
+./bin/toolkit doctor --no-ai     # fuerza el motor heurístico
+./bin/toolkit doctor --json      # Diagnosis en JSON (stdout) para scripting
+```
+
+Ejecuta todos los analyzers + monitores, arma un agregado sin PII
+(`internal/ai/snapshot.go`) y lo diagnostica con Groq si `GROQ_API_KEY` está
+definida; si no hay clave, falla la llamada o pasan 20 s, cae al motor heurístico
+sin avisar. Variables: `GROQ_API_KEY`, `GROQ_MODEL` (default `openai/gpt-oss-20b`),
+`GROQ_BASE_URL` (default `https://api.groq.com/openai/v1`). Con IA solo salen
+agregados (tamaños por dominio, métricas de sistema, nombre y % del proceso más
+caliente): nunca rutas, nombres de archivo ni PIDs. El mismo diagnóstico está en la
+TUI (`d`) y en la tool MCP `mac_doctor`.
 
 ### 3.6 Flujo completo y reportes
 
@@ -178,11 +218,18 @@ y una leyenda de riesgos. No borra nada en esta fase.
 mac-toolkit mcp
 ```
 
-Son **11 herramientas**. Read-only/seguras (8): `mac_analyze`, `mac_battery`,
+Son **12 herramientas**. Solo lectura (9): `mac_analyze`, `mac_battery`,
 `mac_system`, `mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
-`mac_docker_compact`. Destructivas con dry-run por defecto (3): `mac_clean_batch`,
-`mac_docker_cleanup`, `mac_docker_backup`. Ver `docs/MCP_CLIENTS.md` y
-`docs/MCP_SETUP.md` para la configuración del cliente.
+`mac_docker_compact`, `mac_doctor`. Destructivas con `dry_run=true` por defecto (2):
+`mac_clean_batch`, `mac_docker_cleanup`. Escribe un archivo sin borrar y sin
+`dry_run` (1): `mac_docker_backup`. Ver `docs/MCP_CLIENTS.md` y `docs/MCP_SETUP.md`
+para la configuración del cliente.
+
+### 3.8 Flujo de release
+
+Cada cambio va por PR (rama → CI verde → merge squash). Una versión se publica con
+un tag `vX.Y.Z` que dispara GoReleaser; los PRs solo de docs no llevan tag. Ver
+`docs/RELEASE_WORKFLOW.md`.
 
 ---
 
@@ -192,11 +239,14 @@ Son **11 herramientas**. Read-only/seguras (8): `mac_analyze`, `mac_battery`,
 main.go                     → cmd.Execute()
 cmd/                        → comandos Cobra (analyze, clean, system, battery, ...)
 internal/
-  core/                     → config, modelos, runner (timeouts), aprobación, logging
-  monitor/                  → system, battery, network, processes, exec (helper locale)
+  core/                     → config, modelos, runner (timeouts), aprobación, IsAffirmative, logging
+  monitor/                  → system, battery, network, processes, thermal, exec (helper locale)
   analyzer/                 → un archivo por dominio; registro vía init()+Register()
-  cleaner/                  → borrado genérico con dry-run/execute
+  cleaner/                  → borrado genérico con blacklist y dry-run/execute
   reporter/                 → terminal, markdown, json, auditoría
+  tui/                      → TUI Bubble Tea: 2 paneles, header, clean, doctor
+  ai/                       → doctor: snapshot sin PII, heurístico, cliente Groq, collect
+  docker/                   → backup, cleanup y compact
 ```
 
 ### 4.1 Añadir un nuevo dominio de análisis
@@ -217,7 +267,7 @@ internal/
 
 ```bash
 go vet ./...        # análisis estático — debe salir limpio
-go test ./...       # tests unitarios (analyzer, cleaner, core)
+go test ./...       # tests unitarios (cmd, ai, analyzer, cleaner, core, monitor, tui); ~90 s por la TUI
 make build          # compilación
 
 # Verificación funcional de lecturas
@@ -294,8 +344,10 @@ Ajusta estos valores y recompila (`make build`).
 | Red en 0.0 MB | Interfaz por defecto no detectada | Verifica `route -n get default` |
 | `analyze` da `timeout` en un dominio | Árbol muy grande | Sube `AnalyzerTimeoutSeconds` o acota rutas |
 | `timeout: command not found` | macOS no trae `timeout` | `brew install coreutils` → `gtimeout` |
+| El estado térmico no cuadra | Estados: Normal/Throttled/Warning/Unknown | Ver `internal/monitor/thermal.go`; solo Throttled/Warning son alerta |
+| `doctor` no usa IA | Falta `GROQ_API_KEY`, `--no-ai`, o falló la llamada | Es el fallback heurístico previsto; revisa la clave |
 
-### Nota (deuda técnica detectada, fuera de alcance de esta corrección)
-En `cmd/mcp.go`, `handleDockerCleanup` tiene lógica contradictoria al calcular
-`dryRun` (varias reasignaciones). No afecta a las lecturas, pero conviene
-simplificarlo a una sola asignación en un cambio futuro.
+### Nota (resuelta)
+El cálculo de `dry_run` en las tools MCP destructivas se unificó en `isDryRun`
+(`cmd/mcp.go`): un `dry_run` omitido equivale a dry-run y solo un `false` explícito
+ejecuta (corregido en v1.0.0).

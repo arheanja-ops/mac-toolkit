@@ -2,6 +2,11 @@
 
 Architecture and technical design for the Go CLI.
 
+> **Status (v1.7.1).** Sections 1–7 are the original v1.0 design, kept as history.
+> Sections 8–12 document what was added afterwards (TUI, doctor/AI, safety gates,
+> MCP/Docker, thermal parsing) and section 13 lists where the shipped code differs
+> from the original text. Update the status of a decision here; do not rewrite it.
+
 ---
 
 ## 1. Package Layout
@@ -398,3 +403,123 @@ toolkit (no args)
   a temp directory with known contents.
 - **No mocks for gopsutil**: Use real system calls in CI (macOS runners).
   Skip gracefully on non-darwin.
+
+---
+
+## 8. TUI (`internal/tui`) — v1.3.0 → v1.7.0
+
+Bubble Tea program (`tui.Run`) started by `mac-toolkit` (no args) or `mac-toolkit tui`.
+It needs a TTY; without one it returns an error that suggests `mac-toolkit menu`.
+
+| File | Responsibility |
+| ---- | -------------- |
+| `tui.go` | `Run`: TTY check, `tea.NewProgram(..., tea.WithAltScreen())` |
+| `model.go` | Model, `Update`/`View`, key routing per mode, footer hints |
+| `actions.go` | `buildActions()`: Disk (Analyze, Status, Doctor), Clean (Preview, Select & clean), Monitors, Reports, Session (Quit); formatters for analysis/status/monitors |
+| `header.go` | Live header (disk, memory, CPU, thermal), refresh every 2 s, degrades field by field |
+| `welcome.go` | Welcome dashboard shown on open |
+| `layout.go`, `styles.go`, `delegate.go` | Width math, truncation, palette, list delegate with selection caret |
+| `clean.go` | Clean flow: `buildCleanRows`, `toggleMark`, `markAllSafe`, `runCleanCmd`, `writeCleanAudit` |
+| `doctor.go` | Doctor panel: `doctorFn` (injectable), `runDoctor`, `formatDiagnosis` |
+
+**Modes.** The model has four modes — `normalMode`, `selectMode`, `confirmMode`,
+`cleaningMode`. The clean modes own the keyboard while active. Side effects run in
+`tea.Cmd`s (spinner while they run), never in `Update`.
+
+**Clean flow.** `c` → `enterSelect` (fresh analysis, safe rows pre-marked; entering
+never deletes) → `selectMode` (`space`, `a`, `n`, `⏎`, `Esc`) → `confirmMode` (type
+`si`, `core.IsAffirmative`) → `cleaningMode` (`runCleanCmd` → `cleaner.NewGenericCleaner(false, true).Clean`
+→ `writeCleanAudit` with approval mode `tui-select`). Only rows with `Risk == safe &&
+SafeToDelete` are markable; `warn`/`danger` rows are listed dimmed with their reason.
+
+**Layout.** `bodyH = height - 5`; the frame (header + spacing + panels + footer) must
+fit 80x24. Below 90 columns the footer drops the navigation hints and keeps
+`⏎ a c p d / q`. Tests assert no line exceeds 80 columns and at most 24 rows.
+
+**Testability.** `analysisFn`, `doctorFn` and `cleanerFn` are package variables so
+tests inject fixed data and never touch the filesystem, the monitors, Groq or the
+real cleaner.
+
+Specs: `docs/specs/2026-09-21-tui-k9s.md`, `2026-11-01-tui-clean.md`,
+`2026-11-02-tui-doctor.md`.
+
+---
+
+## 9. Doctor and AI (`internal/ai`) — v1.4.0 → v1.7.0
+
+```
+analyzers + monitors ─▶ BuildDoctorSnapshot ─▶ AISnapshot (PII-free)
+                                   │
+                          Diagnose(snap, Options{NoAI})
+                          ├─ NoAI or no GROQ_API_KEY ─▶ Heuristic(snap)
+                          └─ GroqDiagnose (20 s) ─ok─▶ Diagnosis
+                                              └fail─▶ Heuristic(snap)   (silent)
+```
+
+| File | Responsibility |
+| ---- | -------------- |
+| `snapshot.go` | `AISnapshot`, `DomainSummary`, `BuildSnapshot`: the privacy gate. Aggregates only; `disk` is context and excluded from reclaimable totals |
+| `collect.go` | `BuildDoctorSnapshot(analyze)`: the single assembly point for CLI, MCP and TUI (analysis source is injected); `systemMetrics`, `topCPUProcess` (name + %, no PID); `EngineLabel` |
+| `heuristic.go` | Deterministic engine and source of truth for the `Diagnosis` schema (memory pressure, hot process, disk level, quick wins, review) |
+| `groq.go` | OpenAI-compatible client over `net/http`; env `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_BASE_URL`; the response is validated against the schema and the engine label is stamped by the program |
+| `diagnose.go` / `diagnosis.go` | Orchestrator, `Options`, `Diagnosis`/`Insight` types, severities (`high`/`medium`/`low`), engines (`groq`/`heuristic`) |
+
+Privacy is enforced when the snapshot is built, not by trusting a prompt. The package
+is read-only: insights carry a suggested `action` in text, but nothing is executed.
+Consumers: `cmd/doctor.go` (`--no-ai`, `--json`), MCP `mac_doctor` (`no_ai`), TUI
+Doctor panel. Roadmap and specs: `docs/specs/2026-09-09-ai-roadmap.md`,
+`2026-09-09-ai-doctor.md`.
+
+---
+
+## 10. Safety gates
+
+| Gate | Where |
+| ---- | ----- |
+| Dry-run by default | `cmd/clean.go`, `cmd/docker.go` (`--execute`), MCP `isDryRun` |
+| Per-mode approval; EOF/empty ⇒ no | `internal/core/approval.go` |
+| Final `si` confirmation with count + total | `confirmFinalDeletion` (`cmd/clean.go`) |
+| One shared affirmative gate | `core.IsAffirmative` (`internal/core/affirmative.go`) used by CLI and TUI |
+| Only `safe` deletable from the TUI + abort-all defence | `internal/tui/clean.go` |
+| Blacklist before every delete | `cleaner.IsBlacklisted` via `cleaner.Delete` (`internal/cleaner`, prefixes and bundle IDs in `core/config.go`) |
+| Audit log per real cleanup | `reporter.AuditReporter` (`cmd/clean.go`, `internal/tui/clean.go`) |
+
+Known gaps (documented, not hidden): `docker cleanup --execute` (CLI) and
+`mac_docker_cleanup` (MCP) use `internal/docker` directly — no `si` gate, blacklist or
+audit log; `mac_clean_batch` deletes through the cleaner (blacklist applies) but
+writes no audit log. See `docs/SAFETY.md`.
+
+---
+
+## 11. MCP server and Docker
+
+`cmd/mcp.go` registers 12 tools with `mcp.AddTool` (go-sdk): 9 read-only, 2
+destructive with `dry_run *bool` (nil ⇒ dry-run) and `mac_docker_backup` (writes a
+dump to `~/docker-backups/`, no `dry_run`). `internal/docker` implements `Backup`
+(postgres/mysql auto-detected from the image), `Cleanup(keep, dryRun)` and
+`Compact`, used by both `cmd/docker.go` and the MCP handlers.
+
+---
+
+## 12. Thermal state (`internal/monitor/thermal.go`) — v1.7.1
+
+`parseThermal(pmset -g therm output)` is a pure function with table tests. Priority:
+reduced `CPU_Speed_Limit` (`Throttled`) > a really recorded warning level
+(`Warning`) > explicit all-clear or `CPU_Speed_Limit = 100` (`Normal`); anything else
+is `Unknown` ("ignorance must not raise an alarm"). `IsThermalAlert` is an allowlist
+(`Throttled`, `Warning`) shared by the TUI header and the heuristic engine.
+
+---
+
+## 13. Divergences between the original design and v1.7.1
+
+| Original text | Shipped state |
+| ------------- | ------------- |
+| `cmd/battery.go`, `system.go`, `processes.go`, `network.go`, `menu.go` (huh) | Monitors live in `cmd/monitors.go`; `cmd/menu.go` is a promptui menu; `cmd/tui.go` holds `tui`/`menu` commands; plus `cmd/doctor.go`, `cmd/docker.go`, `cmd/mcp.go` |
+| Parallelism with errgroup + context | goroutines + `sync.Mutex` in `core.RunAnalyzers`, per-analyzer timeout 180 s |
+| Monitors use gopsutil | Monitors use `top`, `vm_stat`, `sysctl`, `ps`, `netstat`, airport, `pmset`, `ioreg` via `exec.Command` (with `cmdC` forcing `LC_ALL=C`) |
+| Reporter `terminal` with lipgloss + tablewriter | Own terminal reporter; lipgloss only in the TUI |
+| "Interactive Menu" is the no-args behaviour (5.4) | No-args opens the TUI (section 8); the menu is `mac-toolkit menu` |
+| Exit codes 0/1/2 (section 6) | `Execute()` exits 1 when Cobra returns an error; partial-failure codes are not implemented |
+| Integration tests, symlink blacklist tests (section 7) | Not present; the suite is 108 top-level tests (167 with subtests) across `cmd`, `ai`, `analyzer`, `cleaner`, `core`, `monitor`, `tui` |
+| MCP server version | `mcp.Implementation.Version` is a fixed `"1.0.0"` in `cmd/mcp.go` |

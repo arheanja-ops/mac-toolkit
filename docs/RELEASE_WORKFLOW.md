@@ -110,14 +110,15 @@ git pull --ff-only origin main
 
 ## 4. Publicar nueva versión de la CLI
 
-El release se dispara **exclusivamente** al pushear un tag semver. Elige el bump
-según el cambio (último tag: **`v1.1.0`**):
+El release se dispara **exclusivamente** al pushear un tag semver. Un PR solo de
+documentación (`docs:`) se mergea sin tag ni release. Elige el bump
+según el cambio (último tag: **`v1.7.1`**):
 
 | Cambio | Bump | Ejemplo |
 |--------|------|---------|
 | Breaking / incompatibilidad | MAJOR | `v2.0.0` |
-| Feature nueva compatible | MINOR | `v1.2.0` |
-| Bugfix / interno | PATCH | `v1.1.1` |
+| Feature nueva compatible | MINOR | `v1.8.0` |
+| Bugfix / interno | PATCH | `v1.7.2` |
 
 ```bash
 # Asegúrate de estar en main actualizado y con CI verde.
@@ -125,8 +126,8 @@ git switch main
 git pull --ff-only origin main
 
 # Crea un tag anotado y púshalo.
-git tag -a v1.2.0 -m "v1.2.0 — banner, menú y presentación de datos"
-git push origin v1.2.0
+git tag -a v1.8.0 -m "v1.8.0 — descripción breve del cambio"
+git push origin v1.8.0
 ```
 
 Esto activa `.github/workflows/release.yml`, que corre GoReleaser (`release --clean`)
@@ -143,13 +144,13 @@ Verifica que el release publicó bien:
 
 ```bash
 gh run watch                         # sigue el workflow en vivo
-gh release view v1.2.0               # confirma binarios y changelog
+gh release view v1.8.0               # confirma binarios y changelog
 ```
 
 > Si el tag se pushó por error o falló, bórralo y reintenta:
 > ```bash
-> git push --delete origin v1.2.0    # remoto
-> git tag -d v1.2.0                  # local
+> git push --delete origin v1.8.0    # remoto
+> git tag -d v1.8.0                  # local
 > ```
 > (Operación destructiva sobre el remoto — confirma la versión antes de borrar.)
 
@@ -162,7 +163,7 @@ Tras publicar el release, actualiza tu instalación. Elige **una** opción:
 ### Opción A — `go install` (recomendada, más simple)
 
 ```bash
-go install github.com/arheanja-ops/mac-toolkit@v1.2.0   # versión exacta
+go install github.com/arheanja-ops/mac-toolkit@v1.7.1   # versión exacta
 # o la última:
 go install github.com/arheanja-ops/mac-toolkit@latest
 
@@ -174,7 +175,7 @@ Queda en `$(go env GOPATH)/bin` — asegúrate de tenerlo en el `PATH`.
 ### Opción B — Descargar el binario del release
 
 ```bash
-VERSION=v1.2.0
+VERSION=v1.7.1
 ARCH=arm64                   # arm64 (Apple Silicon) o amd64 (Intel)
 BASE=https://github.com/arheanja-ops/mac-toolkit/releases/download/$VERSION
 
@@ -202,9 +203,14 @@ make build                   # → bin/toolkit
 make install                 # → /usr/local/bin/toolkit
 ```
 
-> `make install` y los builds locales muestran versión `dev` (los ldflags de
-> versión solo los inyecta GoReleaser en el release). Para probar una build local
-> con datos reales de versión, usa la Opción A/B tras publicar el tag.
+> **Qué muestra `--version`** (`cmd/root.go`, `resolveBuildInfo`): los ldflags de
+> versión, commit y fecha solo los inyecta GoReleaser en el release (Opción B).
+> Con `go install ...@vX.Y.Z` (Opción A) ya se muestra la versión del tag, leída
+> de `runtime/debug.ReadBuildInfo()`, pero el commit y la fecha quedan como
+> `none`/`unknown` (verificado con `@v1.7.1`). Un build local en un checkout
+> (Opción C) puede mostrar una versión derivada del VCS (p. ej. `v1.7.1+dirty`) o
+> `dev`, según el toolchain. Para ver commit y fecha reales, usa el binario del
+> release.
 
 ---
 

@@ -23,8 +23,20 @@ repositorio (archivos citados entre paréntesis).
 
 `doctor`, `analyze`, `status`, `battery`, `system`, `processes`, `network` y
 `report` únicamente **leen** métricas del sistema (`df`, `ioreg`, `pmset`,
-`system_profiler`, `WalkDir`). No crean, modifican ni eliminan archivos.
+`system_profiler`, `WalkDir`). No crean, modifican ni eliminan archivos
+(`analyze --save` solo escribe su propio reporte en `reports/`).
 (`cmd/doctor.go` — "strictly read-only — it never deletes").
+
+- **Estados térmicos.** Clasificar `pmset -g therm` como `Normal`, `Throttled`,
+  `Warning` o `Unknown` es lectura pura: no cambia ninguna configuración térmica ni
+  de energía. Ante salida irreconocible el estado es `Unknown`, nunca una alarma.
+  (`internal/monitor/thermal.go` — `parseThermal`, `IsThermalAlert`)
+- **`doctor` con IA.** Con `GROQ_API_KEY` el diagnóstico se pide a Groq, pero solo
+  se envían **agregados** (tamaños y conteos por dominio, métricas de sistema, nombre
+  y % del proceso más caliente): nunca rutas, nombres de archivo ni PIDs; la
+  privacidad se impone al construir el snapshot, no confiando en un prompt. El
+  resultado son sugerencias en texto: `doctor` no ejecuta ninguna. Si la IA falla,
+  cae al motor heurístico local. (`internal/ai/snapshot.go`, `internal/ai/diagnose.go`)
 
 ### (b) `clean` es dry-run por defecto + `--execute` + aprobación + confirmación final
 
@@ -82,11 +94,20 @@ log intactos. No muestra rutas, nombres de archivo ni PIDs: solo agregados del
 
 ### (d) MCP: tools destructivas con `dry_run=true` por defecto
 
-Las tools de solo lectura (`mac_analyze`, `mac_system`, `mac_battery`, etc.)
-nunca borran. Las tools destructivas (`mac_clean_batch`, `mac_docker_cleanup`)
-usan `dry_run=true` por defecto: `isDryRun(nil) == true`. Solo un `dry_run=false`
-**explícito** ejecuta, y en ese caso el agente debe pedir confirmación al
-usuario antes de invocarlas. (`cmd/mcp.go` — `isDryRun`)
+El servidor expone 12 tools. Las 9 de solo lectura (`mac_analyze`, `mac_battery`,
+`mac_system`, `mac_processes`, `mac_network`, `mac_status`, `mac_clean_preview`,
+`mac_docker_compact`, `mac_doctor`) nunca borran. Las 2 destructivas
+(`mac_clean_batch`, `mac_docker_cleanup`) usan `dry_run=true` por defecto:
+`isDryRun(nil) == true`. Solo un `dry_run=false` **explícito** ejecuta, y en ese caso
+el agente debe pedir confirmación al usuario antes de invocarlas. (`cmd/mcp.go` —
+`isDryRun`)
+
+Matices, verificados en el código:
+
+- `mac_clean_batch` solo borra items `safe_to_delete`, a través del cleaner (la
+  blacklist aplica), pero **no escribe audit log**.
+- `mac_docker_backup` no borra: escribe un dump en `~/docker-backups/`. No tiene
+  parámetro `dry_run`.
 
 ### (e) Blacklist de rutas del sistema
 
@@ -95,11 +116,21 @@ forma permanente, entre otros: `/System`, `/usr`, `/bin`, `/sbin`,
 `/private/var/db` y bundles de Apple. Un intento sobre esas rutas se marca
 `skipped-blacklisted`, nunca se elimina. (`internal/cleaner/`)
 
-### (f) Audit log de toda acción destructiva
+### (f) Audit log de la limpieza de archivos (CLI y TUI)
 
-Cada sesión de limpieza con ejecución real escribe un audit log JSON (con modo
-de aprobación y resultado por item) mediante `reporter.AuditReporter`.
-(`cmd/clean.go`, `internal/reporter/`)
+Cada sesión de `clean --execute` (CLI) y cada borrado desde la TUI escribe un audit
+log JSON (`reports/cleanup_<fecha_hora>/audit.json`, con modo de aprobación y
+resultado por item) mediante `reporter.AuditReporter`. (`cmd/clean.go`,
+`internal/tui/clean.go`, `internal/reporter/audit.go`)
+
+### (g) Docker: límites conocidos
+
+`mac-toolkit docker cleanup` es dry-run por defecto y solo borra con `--execute`
+(requiere `--keep`); la tool MCP `mac_docker_cleanup` es `dry_run=true` por
+defecto. Ambos llaman a `internal/docker` directamente: **no** pasan por el gate
+`si`, la blacklist del cleaner ni el audit log. La protección es el dry-run por
+defecto y la lista `keep`; revisa siempre el dry-run antes de ejecutar.
+(`cmd/docker.go`, `internal/docker/ops.go`)
 
 ## Resumen
 
@@ -109,7 +140,10 @@ de aprobación y resultado por item) mediante `reporter.AuditReporter`.
 | TUI — Analyze/Status/monitores/Preview/Last report | solo lectura | — (nunca borra) |
 | TUI — Clean (solo items `safe`) | preview/selección | selección explícita + confirmación `si` (blacklist + audit) |
 | `clean` | dry-run (preview) | `--execute` + aprobación + confirmación `si` |
-| MCP read-only tools | solo lectura | — |
+| Estados térmicos (`system`, header, `mac_system`) | solo lectura | — (nunca modifica nada) |
+| `docker backup` / MCP `mac_docker_backup` | escribe un dump en `~/docker-backups/` | — (no borra; sin `dry_run`) |
+| `docker cleanup` | dry-run | `--keep` + `--execute` (sin gate `si`, blacklist ni audit) |
+| MCP read-only tools (9, incl. `mac_doctor`) | solo lectura | — |
 | MCP `mac_clean_batch` / `mac_docker_cleanup` | `dry_run=true` | `dry_run=false` explícito + confirmación del usuario |
 
 > Regla de oro: ante cualquier ambigüedad, Mac Toolkit **no borra**.

@@ -1,7 +1,7 @@
 # AI & Agents Roadmap — mac-toolkit
 
 **Date:** 2026-09-09
-**Status:** Draft
+**Status:** Active — Fase 1 hecha (v1.4.0); Fases 2-4 pendientes
 **Scope:** mac-toolkit CLI + MCP server
 
 ## Visión

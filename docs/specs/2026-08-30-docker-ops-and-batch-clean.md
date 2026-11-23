@@ -1,7 +1,7 @@
 # Docker Ops & Batch Clean — Design Spec
 
 **Date:** 2026-08-30
-**Status:** Draft
+**Status:** Implemented (v1.0.0)
 **Scope:** mac-toolkit CLI + MCP server
 
 ## Problem

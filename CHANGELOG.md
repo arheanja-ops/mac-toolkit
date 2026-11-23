@@ -7,14 +7,154 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-23
+
+### Fixed
+- **Thermal state was always reported as `Warning`.** `SystemMonitor` looked for the
+  exact phrase "No thermal warnings" in `pmset -g therm`, but recent macOS answers
+  "No thermal warning level has been recorded", so it never matched. This polluted
+  the TUI header, the "hot process" insight of `doctor`, the Doctor panel and the
+  `mac_system` MCP tool. A pure, tested `parseThermal` now returns `Throttled`
+  (`CPU_Speed_Limit` < 100), `Warning` (a warning level really recorded), `Normal`
+  (any "no thermal warning" wording, or `CPU_Speed_Limit` = 100) or `Unknown`
+  (empty/unrecognised output or `pmset` failure — ignorance never raises an alarm).
+  `monitor.IsThermalAlert` (allowlist: `Throttled`, `Warning`) is shared by the
+  header and the heuristic engine.
+- **`--version` showed `dev (commit none, built unknown)` after `go install`.**
+  `resolveBuildInfo` now reads `runtime/debug.ReadBuildInfo()` when no ldflags were
+  injected, so `go install ...@v1.7.1` reports `v1.7.1`. Values injected by
+  GoReleaser always win; commit and date are only real in release binaries.
+
+## [1.7.0] - 2026-11-20
+
 ### Added
-- TUI: panel **Doctor** (acción en el grupo Disk + atajo `d`, `r` para refrescar):
-  PERFORMANCE / QUICK WINS / REQUIERE REVISIÓN, contexto de disco y motor
-  (groq/heurístico). Solo lectura, responsive hasta 80x24.
+- TUI: **Doctor** panel (action in the Disk group + `d` shortcut, `r` to refresh):
+  PERFORMANCE / QUICK WINS / REQUIERE REVISIÓN groups, disk context and engine
+  (Groq/heuristic). Read-only, no cache (every press re-analyzes), spinner while it
+  runs, responsive down to 80x24.
 
 ### Changed
-- El armado del snapshot de `doctor` pasó a `internal/ai/collect.go` y lo comparten
-  el CLI, la tool MCP `mac_doctor` y la TUI (sin cambios de salida).
+- The `doctor` snapshot builder moved to `internal/ai/collect.go`
+  (`BuildDoctorSnapshot`, `systemMetrics`, `topCPUProcess`, `EngineLabel`) and is
+  shared by the CLI, the `mac_doctor` MCP tool and the TUI, with no output changes.
+
+### Docs
+- Session hand-off note updated to v1.6.1 (#12).
+
+## [1.6.1] - 2026-11-02
+
+### Fixed
+- TUI is responsive at 80 columns: tables adapt to the panel width (SHARE column
+  dropped, names truncated with an ellipsis), the full frame fits 80x24 without
+  phantom scroll, the left panel has a 22-column minimum and the "Select & clean"
+  label is no longer clipped. A test guarantees no line exceeds 80 columns and the
+  frame stays within 24 rows.
+
+### Added
+- "✓ Listo (<cmd>)" completion line after `analyze`, `doctor`, `system`, `battery`,
+  `network`, `processes` and `status` (not emitted in `--json` output).
+
+## [1.6.0] - 2026-11-01
+
+### Added
+- TUI-2: interactive **clean** inside the TUI. Selection mode with checkboxes —
+  only `safe` items can be marked; `warn`/`danger` rows are shown dimmed with their
+  reason and cannot be selected. Keys: `space` toggle, `a` all safe, `n` none,
+  `⏎` continue, `Esc` cancel. A confirmation modal requires typing `si` before
+  anything is deleted. Deletion goes through the cleaner (permanent blacklist) and
+  writes the same audit log as the CLI.
+- `core.IsAffirmative`: single shared gate (`si`/`sí`/`yes`/`y`) used by the CLI
+  confirmation and the TUI modal.
+
+### Docs
+- `docs/SAFETY.md` updated with the interactive clean flow; `doctor` documented in
+  the README (#9).
+
+## [1.5.0] - 2026-11-01
+
+### Added
+- **Final confirmation gate in `clean --execute`:** after the per-mode approval the
+  user must type `si` after seeing the exact item count and total size; anything
+  else (including EOF) aborts without deleting.
+- `docs/SAFETY.md`: verifiable safety guarantees.
+
+### Changed
+- TUI visual redesign: coherent palette, panel borders with embedded titles
+  (ACTIONS/DETAILS), header with separators and thermal alert, k9s-style selection
+  caret in the left panel, aligned severity-colored analysis table and a footer
+  with key hints.
+
+## [1.4.0] - 2026-11-01
+
+### Added
+- **`doctor` command** (AI roadmap, phase 1): runs every analyzer plus the system
+  monitors and produces a prioritized, read-only diagnosis (performance, quick
+  wins, items needing review). Flags: `--no-ai` (force the deterministic engine)
+  and `--json` (structured output for scripting).
+- PII-free snapshot (`internal/ai`): aggregates only — no paths, file names or PIDs.
+- OpenAI-compatible Groq client on `net/http` (no external SDK), active only when
+  `GROQ_API_KEY` is set; configurable with `GROQ_MODEL` and `GROQ_BASE_URL`.
+- Deterministic heuristic engine used when there is no key or the AI call fails.
+- `mac_doctor` MCP tool (the server now exposes 12 tools).
+
+### Fixed
+- The `disk` domain is context only and is no longer added to the reclaimable-safe
+  bytes.
+
+## [1.3.2] - 2026-09-21
+
+### Fixed
+- `repos` analyzer timed out on large trees (1242+ `node_modules`): it measured
+  every target sequentially with one `WalkDir` each. It now collects targets in a
+  single cheap walk (never descending into a found target) and measures sizes with
+  a worker pool bounded to `runtime.NumCPU()`. Output is sorted by path and
+  identical to the previous behaviour; the analyzer timeout stays as a guardrail.
+
+### Docs
+- README documents the k9s-style TUI (#5).
+
+## [1.3.1] - 2026-09-21
+
+### Added
+- TUI welcome dashboard (ASCII banner plus a live system summary).
+- Explicit **Quit / Salir** action (Session group); `q`, `Ctrl+C` and `Esc` remain
+  global shortcuts.
+
+### Fixed
+- Total reclaimable in the analysis table excluded neither the `disk` domain nor
+  domains that errored; it now does, shows `disk` as a separate context line and is
+  labelled "Total reclaimable (excl. disk)".
+- Panel width math (2 borders + gap) and a 1-column separator so panel borders no
+  longer touch and the table is no longer cut.
+
+## [1.3.0] - 2026-09-21
+
+### Added
+- k9s-style two-pane **TUI** (phase TUI-1): action list on the left, scrollable
+  detail viewport on the right, and a live header refreshed every 2 seconds (disk,
+  memory, CPU, thermal state; degrades field by field and always shows the version).
+- Read-only actions: analyze, status and the four monitors.
+- `mac-toolkit` with no arguments opens the TUI; `mac-toolkit menu` keeps the
+  previous promptui menu as a fallback.
+- Dependencies: charmbracelet `bubbletea`, `lipgloss`, `bubbles`, plus
+  `mattn/go-isatty` for TTY detection.
+
+### Docs
+- AI roadmap (Groq) and the phase-1 `doctor` spec (#2).
+
+## [1.2.0] - 2026-09-08
+
+### Added
+- Start-up banner with version and a live disk-usage bar.
+- Menu grouped into sections (Disk/Monitors/Reports) with aligned descriptions.
+- Reporter: domains and items sorted by size, proportion bars, top 8 per domain
+  with a summary of the rest, colored checkmarks.
+- `core` helpers: `ReadDiskSnapshot`, `ProgressBar`, `Colorize` and exported colors.
+- `docs/RELEASE_WORKFLOW.md`: PR → merge → tag → GoReleaser contribution flow.
+
+### Changed
+- `mac-toolkit` is now the command name everywhere (Cobra command, GoReleaser
+  binary, README); the shorter `toolkit` alias/symlink was dropped.
 
 ## [1.1.0] - 2026-09-07
 
@@ -80,3 +220,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   numeric parsing of system command output.
 - Active network interface shown in the `network` monitor output.
 - Implementation & execution guide (`docs/GUIA_IMPLEMENTACION_Y_EJECUCION.md`).
+
+[Unreleased]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.7.0...v1.7.1
+[1.7.0]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.6.1...v1.7.0
+[1.6.1]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.6.0...v1.6.1
+[1.6.0]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.3.2...v1.4.0
+[1.3.2]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/arheanja-ops/mac-toolkit/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/arheanja-ops/mac-toolkit/releases/tag/v1.0.0

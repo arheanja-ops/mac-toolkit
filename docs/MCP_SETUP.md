@@ -19,28 +19,36 @@ Guía para conectar el Mac Toolkit como MCP server en **Kiro Crew**, **Kiro Desk
 
 ## Resumen de herramientas MCP
 
-El toolkit expone **11 herramientas** MCP: **8 de solo lectura / seguras** (nunca modifican el disco) y **3 destructivas** que usan `dry_run=true` por defecto y requieren confirmación explícita para ejecutar cambios reales.
+El toolkit expone **12 herramientas** MCP (fuente: `mcp.AddTool` en `cmd/mcp.go`): **9 de solo lectura** (nunca modifican el disco), **2 destructivas** que usan `dry_run=true` por defecto y **1** que escribe un archivo sin borrar nada. El binario se llama `mac-toolkit`.
 
-### Solo lectura / seguras (8)
+### Solo lectura (9)
 
 | # | Tool | Descripción | Parámetros |
 |---|------|-------------|------------|
 | 1 | `mac_analyze` | Análisis de disco (11 dominios en paralelo) | `domain` (opcional) |
 | 2 | `mac_battery` | Batería: salud, ciclos, temperatura, voltaje | — |
-| 3 | `mac_system` | CPU, memoria, swap, thermal, modelo/chip | — |
+| 3 | `mac_system` | CPU, memoria, swap, estado térmico (Normal/Throttled/Warning/Unknown), modelo/chip | — |
 | 4 | `mac_processes` | Top 10 procesos por CPU y por memoria | — |
 | 5 | `mac_network` | WiFi, tráfico, conexiones, online check | — |
 | 6 | `mac_status` | Dominios registrados con nivel de riesgo | — |
 | 7 | `mac_clean_preview` | Preview de limpieza (dry-run seguro) | `domain` (opcional) |
 | 8 | `mac_docker_compact` | Analiza `Docker.raw` (virtual vs real) y da instrucciones para recuperar espacio | — |
+| 9 | `mac_doctor` | Diagnóstico priorizado (performance, quick_wins, review). Groq si hay `GROQ_API_KEY`; si no, heurístico. Solo agregados, sin rutas ni PIDs | `no_ai` (opcional) |
 
-### Destructivas — `dry_run=true` por defecto (3)
+### Destructivas — `dry_run=true` por defecto (2)
+
+Solo un `dry_run=false` **explícito** ejecuta borrados; si el parámetro se omite, es dry-run. Pide confirmación al usuario antes de invocarlas con `dry_run=false`.
 
 | # | Tool | Descripción | Parámetros |
 |---|------|-------------|------------|
-| 9 | `mac_clean_batch` | Limpieza por lotes. Con `dry_run=true` (default) solo muestra el plan; `dry_run=false` borra. | `dry_run` (default true), `domain` (opcional) |
-| 10 | `mac_docker_cleanup` | Limpieza de recursos Docker. `dry_run=true` por defecto. | `dry_run` (default true) |
-| 11 | `mac_docker_backup` | Backup de datos Docker antes de operaciones destructivas. `dry_run=true` por defecto. | `dry_run` (default true) |
+| 10 | `mac_clean_batch` | Limpieza por lotes de items `safe_to_delete`. Con `dry_run=true` (default) solo muestra el plan; `dry_run=false` borra. | `domains` (lista, opcional; vacío = todos), `dry_run` (default true) |
+| 11 | `mac_docker_cleanup` | Elimina recursos Docker excepto los de `keep`. | `keep` (requerido), `dry_run` (default true) |
+
+### Escribe un archivo, no borra (1)
+
+| # | Tool | Descripción | Parámetros |
+|---|------|-------------|------------|
+| 12 | `mac_docker_backup` | Dump de la BD de un contenedor en ejecución (postgres/mysql) en `~/docker-backups/`. **No tiene `dry_run`.** | `container` (requerido) |
 
 ---
 
@@ -88,7 +96,7 @@ Pegar esta configuración:
 
 ### Paso 3: Apply
 
-Click **Apply**. El server se conectará y las 11 herramientas estarán disponibles.
+Click **Apply**. El server se conectará y las 12 herramientas estarán disponibles.
 
 ### Paso 4: Verificar
 
@@ -101,6 +109,7 @@ En el chat de Kiro Crew, las herramientas aparecerán como:
 - `@mac-toolkit/mac_status`
 - `@mac-toolkit/mac_clean_preview`
 - `@mac-toolkit/mac_docker_compact`
+- `@mac-toolkit/mac_doctor`
 - `@mac-toolkit/mac_clean_batch`
 - `@mac-toolkit/mac_docker_cleanup`
 - `@mac-toolkit/mac_docker_backup`
@@ -223,6 +232,9 @@ Una vez conectado, estos son prompts naturales que activan las herramientas:
 
 "Lista los dominios que puedes analizar"
 → Usa: mac_status
+
+"Diagnostica mi Mac y dime qué hacer primero"
+→ Usa: mac_doctor
 ```
 
 ---
@@ -240,9 +252,10 @@ Una vez conectado, estos son prompts naturales que activan las herramientas:
 | 7 | `mac_status` | "¿Qué dominios de disco puede analizar el toolkit?" |
 | 8 | `mac_clean_preview` | "Si limpio todo lo seguro, ¿cuánto espacio recupero?" |
 | 9 | `mac_docker_compact` | "¿Cuánto ocupa Docker.raw y cómo recupero ese espacio?" |
-| 10 | `mac_clean_batch` | "Muéstrame el plan de limpieza por lotes (dry-run)" |
-| 11 | `mac_docker_cleanup` | "Simula una limpieza de imágenes/contenedores Docker (dry-run)" |
-| 12 | `mac_docker_backup` | "Simula un backup de datos Docker antes de limpiar (dry-run)" |
+| 10 | `mac_doctor` | "Diagnostica mi Mac: qué está lento y qué puedo limpiar sin riesgo" |
+| 11 | `mac_clean_batch` | "Muéstrame el plan de limpieza por lotes (dry-run)" |
+| 12 | `mac_docker_cleanup` | "Simula una limpieza de imágenes/contenedores Docker conservando X (dry-run)" |
+| 13 | `mac_docker_backup` | "Haz un backup de la BD del contenedor X antes de limpiar" (escribe un dump; sin dry-run) |
 
 ---
 
@@ -365,4 +378,4 @@ kiro-cli chat --agent mac-ops  # chat con herramientas MCP
 
 ---
 
-*Mac Toolkit MCP v1.0*
+*Mac Toolkit MCP — 12 herramientas (v1.7.1)*
