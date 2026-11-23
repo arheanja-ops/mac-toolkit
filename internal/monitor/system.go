@@ -79,11 +79,9 @@ func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 
 	// Thermal from pmset
 	if out, err := cmdC("pmset", "-g", "therm").Output(); err == nil {
-		if strings.Contains(string(out), "No thermal warnings") {
-			data["thermal"] = "Normal"
-		} else {
-			data["thermal"] = "Warning"
-		}
+		data["thermal"] = parseThermal(string(out))
+	} else {
+		data["thermal"] = ThermalUnknown
 	}
 
 	return data, nil

@@ -61,6 +61,22 @@ func TestRenderThermalHighlightsAbnormal(t *testing.T) {
 	}
 }
 
+// TestRenderThermalUnknownIsNotAlert guarantees Unknown/Normal use the muted
+// label style and Throttled/Warning use the alert style, whatever the terminal
+// color profile is.
+func TestRenderThermalUnknownIsNotAlert(t *testing.T) {
+	for _, s := range []string{"Normal", "Unknown"} {
+		if got, want := renderThermal(s), hdrLabelStyle.Render("🌡 "+s); got != want {
+			t.Errorf("%s should be muted: got %q want %q", s, got, want)
+		}
+	}
+	for _, s := range []string{"Throttled", "Warning"} {
+		if got, want := renderThermal(s), thermalAlertStyle.Render("🌡 "+s); got != want {
+			t.Errorf("%s should be alert: got %q want %q", s, got, want)
+		}
+	}
+}
+
 // TestProportionBarBounds checks the share bar never overflows its width and
 // always shows at least one cell for a non-zero domain.
 func TestProportionBarBounds(t *testing.T) {

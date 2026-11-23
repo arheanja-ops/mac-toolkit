@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
+	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
 )
 
 // Heuristic thresholds (F4). Named so the rules read like the spec table.
@@ -137,16 +138,11 @@ func reviewInsights(snap AISnapshot) []Insight {
 	return out
 }
 
-// isThermalElevated reports whether the thermal state is anything other than a
-// nominal/OK reading. SystemMonitor emits "Normal"/"Warning"; we also tolerate
-// "nominal"/"OK" so the rule matches the spec wording regardless of source.
+// isThermalElevated reports whether the thermal state is a real alert
+// (Throttled/Warning). Normal, Unknown and empty never count: not knowing the
+// thermal state is not evidence of a hot machine.
 func isThermalElevated(state string) bool {
-	switch strings.ToLower(strings.TrimSpace(state)) {
-	case "", "normal", "nominal", "ok":
-		return false
-	default:
-		return true
-	}
+	return monitor.IsThermalAlert(state)
 }
 
 // reviewSeverity maps a domain's top risk to an insight severity.
