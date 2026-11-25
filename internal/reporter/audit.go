@@ -30,7 +30,7 @@ type auditLog struct {
 // WriteAudit writes the cleanup audit log
 func (a *AuditReporter) WriteAudit(results []core.DeleteResult) error {
 	if a.OutputDir == "" {
-		a.OutputDir = fmt.Sprintf("reports/cleanup_%s", time.Now().Format("20060102_150405"))
+		a.OutputDir = core.NewReportDir(core.CleanupPrefix)
 	}
 	if err := os.MkdirAll(a.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("creating audit dir: %w", err)

@@ -8,14 +8,20 @@ import (
 	"strings"
 )
 
-type SystemMonitor struct{}
+// SystemMonitor reports hardware info and live CPU/memory/swap/thermal figures.
+// Light drops the static hardware lookup; the TUI header uses it on every tick.
+type SystemMonitor struct{ Light bool }
 
 func (s *SystemMonitor) Name() string { return "system" }
 
 func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 	data := map[string]any{}
 
-	// Hardware info from system_profiler
+	// Hardware info from system_profiler. The header only needs live numbers,
+	// so Light skips this static (and comparatively slow) lookup.
+	if s.Light {
+		return s.addLive(data), nil
+	}
 	if out, err := runCmd("system_profiler", "SPHardwareDataType", "-json"); err == nil {
 		var prof map[string]any
 		if json.Unmarshal(out, &prof) == nil {
@@ -30,14 +36,14 @@ func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 		}
 	}
 
-	// CPU usage from top
-	if out, err := runCmd("top", "-l", "1", "-n", "0", "-s", "0"); err == nil {
-		reCPU := regexp.MustCompile(`CPU usage:\s+([\d.]+)% user,\s+([\d.]+)% sys`)
-		if m := reCPU.FindStringSubmatch(string(out)); len(m) > 2 {
-			user, _ := strconv.ParseFloat(m[1], 64)
-			sys, _ := strconv.ParseFloat(m[2], 64)
-			data["cpu_percent"] = user + sys
-		}
+	return s.addLive(data), nil
+}
+
+// addLive adds the figures that change over time.
+func (s *SystemMonitor) addLive(data map[string]any) map[string]any {
+	// CPU usage over the last second (see readCPUSplit for why not `top`).
+	if usr, sys, _, ok := readCPUSplit(); ok {
+		data["cpu_percent"] = usr + sys
 	}
 
 	// Memory: same helper as MemoryMonitor so every screen shows one number
@@ -63,8 +69,7 @@ func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 	} else {
 		data["thermal"] = ThermalUnknown
 	}
-
-	return data, nil
+	return data
 }
 
 func (s *SystemMonitor) Display() error {

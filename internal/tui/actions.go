@@ -2,8 +2,7 @@ package tui
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -29,26 +28,43 @@ type actionItem struct {
 	// the model enters the interactive select mode (F2). Like quit, this is a
 	// control action the model handles specially rather than via run().
 	openClean bool
+	// view marks the dedicated, refreshable views ('r' re-runs the open one).
+	view viewID
 }
 
-// buildActions returns the ordered, grouped action set. Phase TUI-1 actions
-// (Analyze, Status, Doctor, monitors, Last report, Quit) stay read-only. Phase TUI-2
-// adds a Clean group: Preview (dry-run, never deletes) and Clean (opens the
-// interactive select-and-delete flow, which still requires the F3 "si" gate).
+// viewItem builds a left-panel entry backed by a dedicated view.
+func viewItem(group, label string, v viewID) actionItem {
+	return actionItem{label: label, group: group, run: v.runner(), view: v}
+}
+
+// buildActions returns the ordered menu, grouped by category. Everything is
+// read-only except two flows that are gated on their own: "Select & clean"
+// (opens the F2/F3 select-and-confirm flow, never deletes directly) and "Save
+// report" (writes only report files into the toolkit's own reports folder).
 func buildActions() []actionItem {
 	return []actionItem{
+		viewItem("Health", doctorLabel, viewDoctor),
 		{label: "Analyze", group: "Disk", run: runAnalyze},
 		{label: "Status", group: "Disk", run: runStatus},
-		{label: doctorLabel, group: "Disk", run: runDoctor},
 		{label: "Preview", group: "Clean", run: runPreview},
 		{label: "Select & clean", group: "Clean", openClean: true},
-		{label: "Battery", group: "Monitors", run: monitorRunner(&monitor.BatteryMonitor{})},
-		{label: "System", group: "Monitors", run: monitorRunner(&monitor.SystemMonitor{})},
-		{label: memoryLabel, group: "Monitors", run: runMemory},
-		{label: cpuLabel, group: "Monitors", run: runCPU},
-		{label: "Processes", group: "Monitors", run: monitorRunner(&monitor.ProcessMonitor{})},
-		{label: "Network", group: "Monitors", run: monitorRunner(&monitor.NetworkMonitor{})},
-		{label: "Last report", group: "Reports", run: runLastReport},
+		viewItem("Memory", "Overview", viewMemory),
+		viewItem("Memory", "Swap & paging", viewMemorySwap),
+		viewItem("Memory", "Top apps", viewMemoryApps),
+		viewItem("CPU", "Overview", viewCPU),
+		viewItem("CPU", "Load", viewCPULoad),
+		viewItem("CPU", "Top apps", viewCPUApps),
+		viewItem("CPU", "Thermal", viewCPUThermal),
+		viewItem("Processes", "Top by CPU", viewProcCPU),
+		viewItem("Processes", "Top by memory", viewProcMem),
+		viewItem("Processes", "By app", viewProcApps),
+		viewItem("Processes", "Summary", viewProcSummary),
+		viewItem("System", "Battery", viewBattery),
+		viewItem("System", "System info", viewSystem),
+		viewItem("System", "Network", viewNetwork),
+		viewItem("Reports", "Last report", viewLastReport),
+		viewItem("Reports", "Saved reports", viewSavedReports),
+		viewItem("Reports", "Save report", viewSaveReport),
 		// Session controls. Quit has no run(); it is handled specially by the
 		// model, which returns tea.Quit when this item is selected.
 		{label: "Quit / Salir", group: "Session", quit: true},
@@ -330,34 +346,23 @@ func formatSnapshot(name string, data map[string]any, width int) string {
 	sort.Strings(keys)
 	for _, k := range keys {
 		label := hdrLabelStyle.Render(fmt.Sprintf("%-20s", k+":"))
-		line := fmt.Sprintf("  %s %v", label, data[k])
+		line := fmt.Sprintf("  %s %s", label, snapshotValue(data[k]))
 		b.WriteString(truncateToWidth(line, w) + "\n")
 	}
 	return b.String()
 }
 
-// reportsDir is the directory reportCmd writes to; kept as a var so tests can
-// point it at a temp dir.
-var reportsDir = "reports"
-
-// runLastReport reuses the same logic as `report --last`: read the newest
-// report directory's markdown file. width is accepted for signature parity with
-// the other actions; the markdown is shown verbatim and scrolls in the viewport.
-func runLastReport(_ int) (string, error) {
-	entries, err := os.ReadDir(reportsDir)
-	if err != nil {
-		return "", fmt.Errorf("no reports found: %w", err)
+// snapshotValue renders a snapshot value for the generic "key: value" view.
+// Scalars print as-is; slices, maps and structs never print as raw Go syntax
+// ("[{9319 38.5 ...}]"): they collapse to an item count, and the monitors that
+// return them have dedicated views instead.
+func snapshotValue(v any) string {
+	switch reflect.ValueOf(v).Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map:
+		return fmt.Sprintf("(%d elementos)", reflect.ValueOf(v).Len())
+	case reflect.Struct, reflect.Pointer:
+		return "(detalle en su vista)"
+	default:
+		return fmt.Sprintf("%v", v)
 	}
-	if len(entries) == 0 {
-		return "", fmt.Errorf("no reports saved yet")
-	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() > entries[j].Name()
-	})
-	mdPath := filepath.Join(reportsDir, entries[0].Name(), "report.md")
-	data, err := os.ReadFile(mdPath)
-	if err != nil {
-		return "", fmt.Errorf("cannot read report: %w", err)
-	}
-	return string(data), nil
 }

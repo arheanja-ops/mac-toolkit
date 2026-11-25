@@ -1,7 +1,18 @@
 # 📍 DÓNDE VAMOS — Punto de retomada
 
-**Última actualización:** 2026-11-23
-**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.8.0**
+**Última actualización:** 2026-11-25
+**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.9.0**
+
+## ✅ Resuelto en v1.9.0
+
+- **Menú por categorías** y vistas de Memory, CPU, Processes y Reports (solo lectura;
+  `Save report` escribe solo en la carpeta de reportes).
+- **Processes en la TUI**: tablas por ancho en vez de datos crudos.
+- **Reportes**: carpeta fija `os.UserConfigDir()/mac-toolkit/reports` (también el audit);
+  `Last report` funciona desde cualquier directorio y, sin reportes, guía al usuario.
+- **CPU% del header y de `system`**: intervalo de 1 s de `iostat` (~0 CPU, antes ~1.4 s
+  por lectura con `top`). Veredicto "Carga alta con CPU libre" cuando idle > 50 %.
+  Spec: `docs/specs/2026-11-25-tui-categories.md`.
 
 ## ✅ Resuelto en v1.8.0
 
@@ -41,12 +52,30 @@
    12, falta `mac_doctor`) y su lista `allowedTools` no incluye `mac_doctor`.
 3. **Versión del servidor MCP:** `cmd/mcp.go` anuncia `Version: "1.0.0"` fija en
    `mcp.Implementation`; conviene que siga la versión del binario.
-4. **CPU del header y de `system`:** `cpu_percent` sale de la primera muestra de
-   `top -l 1`, que es acumulada; la vista CPU usa la segunda muestra. Valorar que
-   `system`/header usen el mismo cálculo que `CPUMonitor`.
-5. **Agentes `.kiro/agents/*.json`:** sus prompts y `allowedTools` deben conocer el
+4. **Agentes `.kiro/agents/*.json`:** sus prompts y `allowedTools` deben conocer el
    parámetro `confirm_plan` y el opt-in `MAC_TOOLKIT_MCP_ALLOW_DELETE=1` de las tools
    MCP destructivas (v1.7.2). Va en el PR de agentes del punto 2.
+
+## 🎯 Siguiente versión: v1.10.0 — "modo escucha" (solo propuesta, sin implementar)
+
+Monitoreo constante mientras la herramienta está abierta, para avisar antes de que el
+usuario lo note. Debe diseñarse en su propia spec antes de escribir código:
+
+- **Monitoreo continuo** dentro de la TUI abierta (no un daemon): un muestreo
+  periódico de CPU, memoria/presión, swap y térmico.
+- **Alertas por umbrales sostenidos**: una alerta solo se dispara si la condición
+  se mantiene N muestras seguidas (p. ej. presión Critical o carga alta con idle bajo),
+  no por un pico aislado; reutiliza los clasificadores de `internal/monitor/classify.go`.
+- **Notificaciones de macOS** (`osascript`/Notification Center) además del aviso en el header.
+- **Anti-spam**: enfriamiento por tipo de alerta, histéresis para el aviso de "recuperado"
+  y un máximo de avisos por hora.
+- **Muestreo liviano**: intervalo configurable, lecturas baratas (`iostat`, `sysctl`,
+  `vm_stat`), nunca `top`/`system_profiler` en el bucle; el costo debe medirse y
+  documentarse como el del header.
+- **Registro de historial**: serie corta de métricas y alertas en la carpeta del
+  toolkit (rotación por tamaño), para consultar qué pasó mientras no se miraba.
+- Preguntas abiertas: ¿opt-in con una tecla o flag?, ¿umbrales configurables?, ¿qué
+  privacidad tiene el historial (solo números, sin nombres de procesos)?
 
 ## 🎯 Roadmap (por blast radius creciente)
 
@@ -70,10 +99,11 @@
 | v1.7.1 | 2026-11-23 | Fix falso positivo térmico + `--version` con `go install` |
 | v1.7.2 | 2026-11-23 | Gates de seguridad: Docker cleanup (plan + "si" + audit) y MCP destructivo (opt-in + `confirm_plan` + audit) |
 | v1.8.0 | 2026-11-23 | Vistas Memory y CPU (`m`/`u`/`r`), memoria usada como Monitor de Actividad, insights nuevos en `doctor` |
+| v1.9.0 | 2026-11-25 | Menú por categorías, vistas de Processes y Reports, reportes en carpeta fija, CPU% liviano |
 
 ## 🔒 Seguridad (ver docs/SAFETY.md)
 
-`doctor`, `analyze` y monitores (incl. Memory y CPU): solo lectura. `clean`: dry-run por defecto →
+`doctor`, `analyze` y monitores (incl. Memory, CPU y Processes): solo lectura (`Save report` solo escribe en la carpeta de reportes). `clean`: dry-run por defecto →
 `--execute` → aprobación → confirmación "si". TUI: solo borra items `safe`, con modal
 "si", blacklist y audit log. MCP: tools destructivas con `dry_run=true` por defecto, opt-in del servidor y `confirm_plan`. Docker cleanup: plan + "si" + audit.
 

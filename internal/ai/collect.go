@@ -1,8 +1,6 @@
 package ai
 
 import (
-	"encoding/json"
-
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
 )
@@ -40,7 +38,7 @@ func systemMetrics() map[string]any {
 // must never be merged into something that gets serialized.
 var loadKeys = map[string][]string{
 	"memory": {"swap_thrash", "pressure_code"},
-	"cpu":    {"user_pct", "sys_pct", "load5_per_core"},
+	"cpu":    {"user_pct", "sys_pct", "idle_pct", "load5_per_core"},
 }
 
 // mergeLoadKeys copies the allowlisted numeric keys from the dedicated
@@ -69,22 +67,15 @@ func copyAllowed(sys map[string]any, name string, data map[string]any) {
 }
 
 // topCPUProcess extracts the #1 CPU process (name + cpu%) from ProcessMonitor.
-// The monitor's native slice type is unexported, so we round-trip through JSON
-// rather than reimplement `ps` parsing — and we deliberately drop the PID.
+// It reads only those two fields of monitor.ProcInfo: the PID the local views
+// show is never copied, so it cannot reach the snapshot.
 func topCPUProcess() (name string, cpuPct float64, ok bool) {
 	data, err := (&monitor.ProcessMonitor{}).Snapshot()
 	if err != nil {
 		return "", 0, false
 	}
-	raw, err := json.Marshal(data["top_cpu"])
-	if err != nil {
-		return "", 0, false
-	}
-	var procs []struct {
-		CPU  float64 `json:"CPU"`
-		Name string  `json:"Name"`
-	}
-	if json.Unmarshal(raw, &procs) != nil || len(procs) == 0 {
+	procs, _ := data["top_cpu"].([]monitor.ProcInfo)
+	if len(procs) == 0 {
 		return "", 0, false
 	}
 	return procs[0].Name, procs[0].CPU, true

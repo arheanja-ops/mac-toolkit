@@ -56,11 +56,12 @@ type AISnapshot struct {
 	// Numbers and a flag only: the load/memory insights never need a name,
 	// path or PID, so none of those can reach the snapshot through here.
 	// LoadPerCore is the 5-minute load average divided by the core count (the
-	// same basis monitor.ClassifyCPU uses), MemoryPressureLevel the kernel code
+	// same basis monitor.ClassifyCPU uses, together with the idle share), MemoryPressureLevel the kernel code
 	// (1 normal, 2 warning, 4 critical, 0 unknown).
 	LoadPerCore         float64 `json:"load_per_core"`
 	CPUUserPct          float64 `json:"cpu_user_pct"`
 	CPUSysPct           float64 `json:"cpu_sys_pct"`
+	CPUIdlePct          float64 `json:"cpu_idle_pct"`
 	SwapThrash          bool    `json:"swap_thrash"`
 	MemoryPressureLevel int     `json:"memory_pressure_level"`
 }
@@ -170,6 +171,9 @@ func applyLoadMetrics(snap *AISnapshot, sys map[string]any) {
 	}
 	if v, ok := sys["sys_pct"].(float64); ok {
 		snap.CPUSysPct = v
+	}
+	if v, ok := sys["idle_pct"].(float64); ok {
+		snap.CPUIdlePct = v
 	}
 	if v, ok := sys["swap_thrash"].(bool); ok {
 		snap.SwapThrash = v

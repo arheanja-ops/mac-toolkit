@@ -9,52 +9,70 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Labels of the dedicated, refreshable views in the left panel.
-const (
-	memoryLabel = "Memory"
-	cpuLabel    = "CPU"
-)
-
-// viewID identifies the dedicated panel currently shown in the detail pane. It
-// generalizes the old Doctor-only flag: 'r' refreshes whichever view is open
-// and nothing else, so the key never re-runs an unrelated action.
+// viewID identifies the dedicated panel currently shown in the detail pane. 'r'
+// refreshes whichever view is open and nothing else, so the key never re-runs
+// an unrelated action.
 type viewID int
 
 const (
 	viewNone viewID = iota
 	viewDoctor
-	viewMemory
-	viewCPU
+	viewMemory // Overview
+	viewMemorySwap
+	viewMemoryApps
+	viewCPU // Overview
+	viewCPULoad
+	viewCPUApps
+	viewCPUThermal
+	viewProcCPU
+	viewProcMem
+	viewProcApps
+	viewProcSummary
+	viewBattery
+	viewSystem
+	viewNetwork
+	viewLastReport
+	viewSavedReports
+	viewSaveReport
 )
 
-// viewForLabel maps a left-panel label to its dedicated view (viewNone for
-// ordinary actions).
-func viewForLabel(label string) viewID {
-	switch label {
-	case doctorLabel:
-		return viewDoctor
-	case memoryLabel:
-		return viewMemory
-	case cpuLabel:
-		return viewCPU
-	default:
-		return viewNone
-	}
+// viewRunners maps each dedicated view to its read-only producer. A package
+// var (not a switch) keeps one line per view and lets tests assert that every
+// view has a runner.
+var viewRunners = map[viewID]func(width int) (string, error){
+	viewDoctor:       runDoctor,
+	viewMemory:       runMemory,
+	viewMemorySwap:   runMemorySwap,
+	viewMemoryApps:   runMemoryApps,
+	viewCPU:          runCPU,
+	viewCPULoad:      runCPULoad,
+	viewCPUApps:      runCPUApps,
+	viewCPUThermal:   runCPUThermal,
+	viewProcCPU:      runProcTopCPU,
+	viewProcMem:      runProcTopMem,
+	viewProcApps:     runProcApps,
+	viewProcSummary:  runProcSummary,
+	viewBattery:      monitorRunner(&monitor.BatteryMonitor{}),
+	viewSystem:       monitorRunner(&monitor.SystemMonitor{}),
+	viewNetwork:      monitorRunner(&monitor.NetworkMonitor{}),
+	viewLastReport:   runLastReport,
+	viewSavedReports: runSavedReports,
+	viewSaveReport:   runSaveReport,
 }
 
-// runner returns the read-only producer behind a view.
-func (v viewID) runner() func(width int) (string, error) {
-	switch v {
-	case viewDoctor:
-		return runDoctor
-	case viewMemory:
-		return runMemory
-	case viewCPU:
-		return runCPU
-	default:
-		return nil
-	}
+// viewTitles label the detail pane per view, so the border reads as a tab.
+var viewTitles = map[viewID]string{
+	viewDoctor: "HEALTH · DOCTOR", viewMemory: "MEMORY · OVERVIEW", viewMemorySwap: "MEMORY · SWAP & PAGING",
+	viewMemoryApps: "MEMORY · TOP APPS", viewCPU: "CPU · OVERVIEW", viewCPULoad: "CPU · LOAD",
+	viewCPUApps: "CPU · TOP APPS", viewCPUThermal: "CPU · THERMAL", viewProcCPU: "PROCESSES · TOP BY CPU",
+	viewProcMem: "PROCESSES · TOP BY MEMORY", viewProcApps: "PROCESSES · BY APP",
+	viewProcSummary: "PROCESSES · SUMMARY", viewBattery: "SYSTEM · BATTERY", viewSystem: "SYSTEM · INFO",
+	viewNetwork: "SYSTEM · NETWORK", viewLastReport: "REPORTS · LAST", viewSavedReports: "REPORTS · SAVED",
+	viewSaveReport: "REPORTS · SAVE",
 }
+
+// runner returns the read-only producer behind a view (nil for viewNone).
+func (v viewID) runner() func(width int) (string, error) { return viewRunners[v] }
 
 // Bar sizing and the usage thresholds that pick a bar color.
 const (

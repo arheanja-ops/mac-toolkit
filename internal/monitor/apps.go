@@ -7,8 +7,9 @@ import (
 	"strings"
 )
 
-// topAppsN is how many applications the memory and CPU views list.
-const topAppsN = 5
+// topAppsN is how many applications the memory and CPU snapshots keep; the
+// Overview views show the first 5 and the "Top apps" views all of them.
+const topAppsN = 10
 
 // AppUsage is one application's aggregated footprint. It deliberately has no
 // PID and no path: only a display name and magnitudes, so it is safe to show
@@ -20,41 +21,73 @@ type AppUsage struct {
 	Procs  int     `json:"procs"`
 }
 
-// reProcRow splits "rss pcpu command"; the command keeps inner spaces.
-var reProcRow = regexp.MustCompile(`^\s*(\d+)\s+(\d+(?:\.\d+)?)\s+(\S.*?)\s*$`)
+// reProcEntry splits "pid state rss pcpu pmem command"; the command keeps its
+// inner spaces because executable paths may contain them.
+var reProcEntry = regexp.MustCompile(
+	`^\s*(\d+)\s+(\S+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\S.*?)\s*$`)
 
-// procRow is one parsed `ps` line.
+// procEntry is one parsed `ps` line. The PID and state exist only for the
+// local Processes views; the app aggregation and every snapshot that can leave
+// the machine work on procRow, which has neither.
+type procEntry struct {
+	pid   int
+	state string
+	mem   float64
+	procRow
+}
+
+// procRow is the PID-free subset used for per-app aggregation.
 type procRow struct {
 	rssKB int64
 	cpu   float64
 	comm  string
 }
 
-// readProcRows lists every process as rss/%cpu/command. Fields use empty
-// headers (`=`) so there is nothing to skip, and no PID is requested at all.
-func readProcRows() ([]procRow, error) {
-	out, err := runCmd("ps", "-axwwo", "rss=,pcpu=,comm=")
+// readProcTable lists every process with ONE ps call, so the Processes, Memory
+// and CPU views share the same command (and the same test fake).
+func readProcTable() ([]procEntry, error) {
+	out, err := runCmd("ps", "-axwwo", "pid=,state=,rss=,pcpu=,pmem=,comm=")
 	if err != nil {
 		return nil, err
 	}
-	return parseProcRows(string(out)), nil
+	return parseProcTable(string(out)), nil
 }
 
-// parseProcRows parses `ps -o rss=,pcpu=,comm=` output. The command is the
-// remainder of the line because executable paths may contain spaces. Malformed
+// readProcRows is readProcTable without PID/state, for the app aggregation.
+func readProcRows() ([]procRow, error) {
+	entries, err := readProcTable()
+	if err != nil {
+		return nil, err
+	}
+	return rowsOf(entries), nil
+}
+
+// rowsOf drops the PID and state of every entry.
+func rowsOf(entries []procEntry) []procRow {
+	rows := make([]procRow, len(entries))
+	for i, e := range entries {
+		rows[i] = e.procRow
+	}
+	return rows
+}
+
+// parseProcTable parses `ps -o pid=,state=,rss=,pcpu=,pmem=,comm=`. Malformed
 // lines are skipped rather than failing the whole snapshot.
-func parseProcRows(raw string) []procRow {
-	var rows []procRow
+func parseProcTable(raw string) []procEntry {
+	var out []procEntry
 	for _, line := range strings.Split(raw, "\n") {
-		m := reProcRow.FindStringSubmatch(line)
+		m := reProcEntry.FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
-		rss, _ := strconv.ParseInt(m[1], 10, 64)
-		cpu, _ := strconv.ParseFloat(m[2], 64)
-		rows = append(rows, procRow{rssKB: rss, cpu: cpu, comm: m[3]})
+		pid, _ := strconv.Atoi(m[1])
+		rss, _ := strconv.ParseInt(m[3], 10, 64)
+		cpu, _ := strconv.ParseFloat(m[4], 64)
+		mem, _ := strconv.ParseFloat(m[5], 64)
+		out = append(out, procEntry{pid: pid, state: m[2], mem: mem,
+			procRow: procRow{rssKB: rss, cpu: cpu, comm: m[6]}})
 	}
-	return rows
+	return out
 }
 
 // appName derives the display name of a process. A path inside `/X.app/` maps

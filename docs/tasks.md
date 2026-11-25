@@ -78,9 +78,9 @@ Blacklist enforcement and file deletion.
 
 - [x] **5.1** `internal/reporter/reporter.go` — `Reporter` interface
 - [x] **5.2** `internal/reporter/terminal.go` — lipgloss-styled tables via tablewriter; color-coded risk levels; summary row with totals — _entregado sin_ tablewriter
-- [x] **5.3** `internal/reporter/markdown.go` — generate `.md` report with timestamp filename, domain sections, tables, totals; write to `reports/` dir
-- [x] **5.4** `internal/reporter/json.go` — serialize `[]AnalysisResult` to indented JSON with timestamp filename; write to `reports/` dir
-- [x] **5.5** `internal/reporter/audit.go` — `AuditReporter` with session UUID; `Write(sessionID, []CleanResult)` appends JSON lines to `audit.json` — _entregado como_ `audit.json` por sesión en `reports/cleanup_<fecha_hora>/` (no JSON lines acumulado)
+- [x] **5.3** `internal/reporter/markdown.go` — generate `.md` report with timestamp filename, domain sections, tables, totals; write to the reports folder (`core.ReportsDir()`)
+- [x] **5.4** `internal/reporter/json.go` — serialize `[]AnalysisResult` to indented JSON with timestamp filename; write to the reports folder (`core.ReportsDir()`)
+- [x] **5.5** `internal/reporter/audit.go` — `AuditReporter` with session UUID; `Write(sessionID, []CleanResult)` appends JSON lines to `audit.json` — _entregado como_ `audit.json` por sesión en `<carpeta de reportes>/cleanup_<fecha_hora>/` (no JSON lines acumulado)
 - [ ] **5.6** Tests for Phase 5: terminal reporter produces expected table output; markdown/json reporters create correct files in temp dir; audit appends without corrupting existing entries
 
 ---
@@ -94,7 +94,7 @@ Cobra command definitions and interactive menu.
 - [x] **6.3** `cmd/clean.go` — wire analyze → approval → cleaner → audit; respect --execute, --mode, --domain flags
 - [x] **6.4** `cmd/full.go` — combine analyze --save + clean; respect all flags
 - [x] **6.5** `cmd/status.go` — print domain table with risk levels using terminal reporter
-- [x] **6.6** `cmd/report.go` — list saved reports in `reports/`; --last shows most recent; print file contents to stdout
+- [x] **6.6** `cmd/report.go` — list saved reports in the reports folder; --last shows most recent; print file contents to stdout
 - [x] **6.7** `cmd/battery.go` — instantiate battery monitor, collect, display — los 4 monitores viven en `cmd/monitors.go`
 - [x] **6.8** `cmd/system.go` — instantiate system monitor, collect, display
 - [x] **6.9** `cmd/processes.go` — instantiate processes monitor, collect, display
@@ -131,7 +131,7 @@ Makefile, build verification, final cleanup.
 - [x] **8.5** Verify `toolkit clean` shows dry-run preview without deleting
 - [~] **8.6** Verify `toolkit clean --execute --mode checklist` shows interactive checkboxes — implementado (`approval.go`); no re-verificado de forma interactiva en esta revisión
 - [x] **8.7** Verify all 4 monitor commands produce output: battery, system, processes, network
-- [x] **8.8** Verify `--save` writes reports to `reports/` with timestamp filenames
+- [x] **8.8** Verify `--save` writes reports to the reports folder with timestamp filenames
 - [x] **8.9** Verify `audit.json` is created on `--execute` runs — `audit.json` se escribe tras `clean --execute` y tras borrar desde la TUI
 - [ ] **8.10** Strip binary (`go build -ldflags="-s -w"`), verify size < 15 MB
 - [x] **8.11** Update `README.md` with usage, build instructions, and architecture overview
@@ -146,6 +146,7 @@ Makefile, build verification, final cleanup.
 - [x] **9.4** TUI-2 (v1.6.0) clean interactivo: checkboxes (solo `safe` marcables), teclas espacio/`a`/`n`/⏎/Esc, modal "si", cleaner con blacklist, audit log (`tui-select`)
 - [x] **9.5** (v1.6.1) Responsive hasta 80x24 con test de ancho/alto y línea "✓ Listo (<cmd>)"
 - [x] **9.6** TUI-3 (v1.7.0) panel Doctor: acción en Disk, atajo `d`, `r` refresca, solo lectura
+- [x] **9.6b** (v1.9.0) Menú por categorías; vistas Memory/CPU/Processes/Reports; `Save report`; carpeta de reportes fija (`core.ReportsDir`); CPU% del header vía `iostat`; veredicto "Carga alta con CPU libre". Spec `docs/specs/2026-11-25-tui-categories.md`
 - [ ] **9.7** TUI-2.1: limpiar items `warn`/`danger` desde la TUI con confirmación por item (no implementado)
 - [ ] **9.8** Acciones Docker desde la TUI (no implementado)
 

@@ -54,40 +54,25 @@ func TestMonitorRunnerPropagatesError(t *testing.T) {
 
 func TestRunLastReportReadsNewest(t *testing.T) {
 	dir := t.TempDir()
-	// Two report dirs; the lexicographically greater name is "newest".
-	older := filepath.Join(dir, "2020-01-01")
-	newer := filepath.Join(dir, "2026-09-21")
-	for _, d := range []string{older, newer} {
+	withReportsDir(t, dir)
+	for name, body := range map[string]string{
+		"analysis_20200101_000000": "# Old\n\nOLDEST",
+		"analysis_20260921_101500": "# New\n\nNEWEST",
+	} {
+		d := filepath.Join(dir, name)
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
+		if err := os.WriteFile(filepath.Join(d, "report.md"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := os.WriteFile(filepath.Join(newer, "report.md"), []byte("NEWEST"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(older, "report.md"), []byte("OLDEST"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	orig := reportsDir
-	reportsDir = dir
-	defer func() { reportsDir = orig }()
-
 	out, err := runLastReport(80)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out != "NEWEST" {
-		t.Fatalf("expected newest report, got: %q", out)
-	}
-}
-
-func TestRunLastReportNoDir(t *testing.T) {
-	orig := reportsDir
-	reportsDir = filepath.Join(t.TempDir(), "does-not-exist")
-	defer func() { reportsDir = orig }()
-	if _, err := runLastReport(80); err == nil {
-		t.Fatal("expected error when reports dir is missing")
+	if !strings.Contains(out, "NEWEST") || strings.Contains(out, "OLDEST") {
+		t.Fatalf("expected newest report only, got: %q", out)
 	}
 }
 

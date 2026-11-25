@@ -170,7 +170,7 @@ y una leyenda de riesgos. No borra nada en esta fase.
 
 > Seguridad: `--execute` es la única forma de borrar desde el CLI. Cada
 > ejecución de limpieza escribe un log de auditoría vía `AuditReporter`
-> (`reports/cleanup_<fecha_hora>/audit.json`). Rutas del sistema
+> (`<carpeta de reportes>/cleanup_<fecha_hora>/audit.json`). Rutas del sistema
 > (`/System`, `/usr`, `/bin`, `/sbin`, `/private/var/db`) y bundles críticos de
 > Apple están en lista negra en `internal/core/config.go` y nunca se tocan.
 

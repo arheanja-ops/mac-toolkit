@@ -68,15 +68,17 @@ mac-toolkit tui      # equivalente explícito
 
 Tras una pantalla de bienvenida (banner + resumen del sistema), la TUI muestra:
 
-- **Header en vivo** (refresco cada 2 s): disco, memoria, CPU y estado térmico.
-- **Panel izquierdo** — acciones: Disk (Analyze, Status, Doctor), Clean (Preview,
-  Select & clean), Monitors (Battery, System, Memory, CPU, Processes, Network), Reports (Last
-  report) y Session (Quit / Salir).
+- **Header en vivo** (se refresca solo): disco, memoria, CPU y estado térmico.
+- **Panel izquierdo** — menú por categorías: HEALTH (Doctor), DISK (Analyze, Status),
+  CLEAN (Preview, Select & clean), MEMORY (Overview, Swap & paging, Top apps), CPU
+  (Overview, Load, Top apps, Thermal), PROCESSES (Top by CPU, Top by memory, By app,
+  Summary), SYSTEM (Battery, System info, Network), REPORTS (Last report, Saved reports,
+  Save report) y SESSION (Quit / Salir).
 - **Panel derecho** — resultado de la acción, con scroll. Responsive hasta 80x24.
 
 | Modo | Teclas |
 |------|--------|
-| Normal | `↑↓` mover · `Tab` cambiar panel · `⏎` ejecutar · `/` filtrar · `a` Analyze · `p` Preview · `c` modo selección de limpieza · `d` Doctor · `m` Memory · `u` CPU · `r` refrescar la vista abierta (Doctor/Memory/CPU) · `q`/`Ctrl+C`/`Esc` salir |
+| Normal | `↑↓` mover · `Tab` cambiar panel · `⏎` ejecutar · `/` filtrar · `a` Analyze · `p` Preview · `c` modo selección de limpieza · `d` Doctor · `m` Memory · `u` CPU · `r` refrescar la vista abierta · `q`/`Ctrl+C`/`Esc` salir |
 | Selección de limpieza | `↑↓` (o `k`/`j`) mover · `espacio` marcar · `a` todos los `safe` · `n` ninguno · `⏎` continuar · `Esc` cancelar |
 | Confirmación | escribir `si` + `⏎` borra; `Esc` u otra entrada cancela |
 
@@ -90,6 +92,11 @@ CLI (`approval_mode: tui-select`). `Preview` es dry-run y nunca borra. Detalle e
 **Panel Doctor.** `d` (o la acción Doctor) ejecuta el diagnóstico y lo muestra en
 tres grupos: PERFORMANCE, QUICK WINS y REQUIERE REVISIÓN, más el contexto de disco y
 el motor usado. Solo lectura; cada pulsación re-analiza sin caché.
+
+**Reportes.** La carpeta es fija: `~/Library/Application Support/mac-toolkit/reports`
+(`os.UserConfigDir()/mac-toolkit/reports`), así que `mac-toolkit report`, `Last report` y
+`Saved reports` funcionan desde cualquier directorio. `analyze --save` y `Save report`
+guardan `analysis_<fecha_hora>/report.md` + `report.json` e informan la ruta.
 
 ### Menú lineal (fallback)
 
@@ -129,7 +136,7 @@ borra ni ejecuta acciones.
 mac-toolkit analyze                          # Análisis completo (11 dominios en paralelo)
 mac-toolkit analyze --domain browser         # Solo caches de navegador
 mac-toolkit analyze --domain docker          # Solo Docker
-mac-toolkit analyze --save                   # Guardar reporte MD + JSON en reports/
+mac-toolkit analyze --save                   # Guardar reporte MD + JSON en la carpeta de reportes
 mac-toolkit analyze --min-size 100           # Umbral de archivos grandes (MB, default 50)
 ```
 
@@ -395,14 +402,14 @@ el agente debe pedir confirmación al usuario antes.
 
 ### System
 - **Fuente**: `system_profiler SPHardwareDataType -json`, `top`, `vm_stat`, `sysctl`, `pmset -g therm`
-- **Métricas**: modelo, chip, cores, RAM, CPU %, memoria usada/total/%, swap, estado térmico
+- **Métricas**: modelo, chip, cores, RAM, CPU % (user+sys del intervalo de 1 s de `iostat`), memoria usada/total/%, swap, estado térmico
 - **Estado térmico** (`internal/monitor/thermal.go`): `Normal` (sin avisos o `CPU_Speed_Limit` = 100), `Throttled` (`CPU_Speed_Limit` < 100), `Warning` (nivel de aviso realmente registrado) o `Unknown` (salida vacía/irreconocible o `pmset` falló). Solo `Throttled` y `Warning` son alerta; es lectura pura
 - **Colores CPU**: 🟢 <60%, 🟡 <85%, 🔴 ≥85%
 - **Colores Memoria**: 🟢 <70%, 🟡 <90%, 🔴 ≥90%
 
 ### Processes
-- **Fuente**: `ps -arcwwwxo pid,pcpu,pmem,rss,comm`, `memory_pressure`
-- **Métricas**: top 10 CPU, top 10 memoria (PID, CPU%, MEM%, RSS, nombre)
+- **Fuente**: `ps -axwwo pid,state,rss,pcpu,pmem,comm`, `memory_pressure`
+- **Métricas**: top 15 CPU y memoria (PID, CPU%, MEM%, RSS, nombre), resumen por estado (running, sleeping, stopped, zombie, espera I/O), apps agregadas y presión de memoria. No cuenta hilos
 
 ### Network
 - **Fuente**: `netstat -ib`, airport framework, `netstat -an`, HTTP check a apple.com
@@ -450,7 +457,7 @@ Solo borra items `safe`, tras selección explícita y confirmación `si`; pasa p
 Solo lectura (CLI, TUI y `mac_doctor`). Con IA solo se envían agregados, nunca rutas ni PIDs.
 
 ### Audit log
-Cada sesión de limpieza real (CLI y TUI) genera un `audit.json` en `reports/cleanup_<fecha_hora>/` con:
+Cada sesión de limpieza real (CLI y TUI) genera un `audit.json` en `<carpeta de reportes>/cleanup_<fecha_hora>/` (ver Reportes) con:
 - UUID de sesión
 - Usuario que ejecutó
 - Flag dry-run

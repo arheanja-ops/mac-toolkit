@@ -11,6 +11,9 @@ import (
 
 type JSONReporter struct {
 	OutputDir string
+	// Quiet suppresses the stderr confirmation; the TUI owns the screen and a
+	// stray write would corrupt it.
+	Quiet bool
 }
 
 func (j *JSONReporter) Name() string { return "json" }
@@ -22,7 +25,7 @@ type jsonReport struct {
 
 func (j *JSONReporter) Report(results []core.AnalysisResult) error {
 	if j.OutputDir == "" {
-		j.OutputDir = fmt.Sprintf("reports/analysis_%s", time.Now().Format("20060102_150405"))
+		j.OutputDir = core.NewReportDir(core.AnalysisPrefix)
 	}
 	if err := os.MkdirAll(j.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("creating report dir: %w", err)
@@ -46,6 +49,8 @@ func (j *JSONReporter) Report(results []core.AnalysisResult) error {
 		return fmt.Errorf("encoding json: %w", err)
 	}
 
-	core.Success("JSON report saved: %s", path)
+	if !j.Quiet {
+		core.Success("JSON report saved: %s", path)
+	}
 	return nil
 }

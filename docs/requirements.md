@@ -38,7 +38,7 @@ The binary is called `toolkit`. It uses **cobra** for command routing.
 | `--execute`         | bool   | false   | Actually delete files (dry-run without)  |
 | `--domain <name>`   | string | all     | Restrict to a single analyzer domain     |
 | `--mode <mode>`     | string | deal    | Approval mode: deal/category/item/checklist |
-| `--save`            | bool   | false   | Save report to `reports/` directory      |
+| `--save`            | bool   | false   | Save report to the canonical reports folder (`core.ReportsDir()`) |
 | `--last`            | bool   | false   | Show the most recent saved report        |
 | `--timeout`         | int    | 120     | Analysis timeout in seconds              |
 
@@ -119,8 +119,8 @@ A single `GenericCleaner` handles all file deletion. Before every delete:
 | Reporter   | Output                                                  |
 | ---------- | ------------------------------------------------------- |
 | `terminal` | Styled tables via lipgloss + tablewriter to stdout      |
-| `markdown` | `.md` file saved to `reports/`                          |
-| `json`     | `.json` file saved to `reports/`                        |
+| `markdown` | `.md` file saved to the reports folder                  |
+| `json`     | `.json` file saved to the reports folder                |
 | `audit`    | `audit.json` — append-only log with UUID session ID     |
 
 Report filenames include a timestamp: `report-2026-08-28T083000.md`.
@@ -265,8 +265,10 @@ is attack surface and maintenance burden.
 | Parallelism via errgroup; default timeout 120 s | goroutines + `sync.Mutex` (`core.RunAnalyzers`); timeout 180 s (`core.AnalyzerTimeoutSeconds`) |
 | Dependencies: gopsutil, huh, tablewriter, uuid, testify | Not used. Direct deps: cobra, bubbletea, lipgloss, bubbles, promptui, go-isatty, MCP go-sdk; stdlib tests |
 | Reporter `terminal` via lipgloss + tablewriter | Own ANSI/terminal reporter (`internal/reporter/terminal.go`) |
-| `audit.json` append-only | One `audit.json` per cleanup session in `reports/cleanup_<timestamp>/` |
-| Report filename `report-<ts>.md` | `reports/analysis_<ts>/report.md` and `report.json` |
+| `audit.json` append-only | One `audit.json` per cleanup session in `<reports folder>/cleanup_<timestamp>/` |
+| Report filename `report-<ts>.md` | `<reports folder>/analysis_<ts>/report.md` and `report.json` |
+| `reports/` relative to the working directory | (v1.9.0) Fixed folder `os.UserConfigDir()/mac-toolkit/reports` (macOS: `~/Library/Application Support/mac-toolkit/reports`), independent of the cwd |
+| Flat TUI menu | (v1.9.0) Category menu: Health, Disk, Clean, Memory, CPU, Processes, System, Reports, Session |
 | Test coverage ≥ 80 % | Not met: 31.3 % `internal/core`, 63.9 % `internal/cleaner` (measured with `go test -cover`) |
 | Out of scope: "GUI or web interface" | Still no GUI/web; the terminal TUI (section 1.9) is in scope |
 | Spanish/English affirmatives `s`, `si`, `sí`, `y`, `yes` in all prompts | Per-mode approval prompts accept `s`/`si`/`sí`/`y`/`yes` (`internal/core/approval.go`); the final deletion gate and the TUI modal accept only `si`/`sí`/`yes`/`y` (not bare `s`) |

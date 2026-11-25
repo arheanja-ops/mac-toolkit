@@ -77,13 +77,22 @@ func performanceInsights(snap AISnapshot) []Insight {
 // action is ever taken automatically.
 func loadInsights(snap AISnapshot) []Insight {
 	var out []Insight
-	if monitor.ClassifyLoadRatio(snap.LoadPerCore) == monitor.LoadSaturated {
+	switch monitor.ClassifyLoad(snap.LoadPerCore, idleOf(snap)) {
+	case monitor.LoadSaturated:
 		out = append(out, Insight{
 			Title: "CPU saturada",
-			Detail: fmt.Sprintf("La carga de 5 min es %.1f veces el número de núcleos.",
+			Detail: fmt.Sprintf("La carga de 5 min es %.1f veces el número de núcleos y la CPU tiene poco margen libre.",
 				snap.LoadPerCore),
 			Action:   "Revisa en la vista CPU (tecla u) qué apps consumen más y cierra las que no necesites.",
 			Severity: SevHigh,
+		})
+	case monitor.LoadWaiting:
+		out = append(out, Insight{
+			Title: "Carga alta con CPU libre",
+			Detail: fmt.Sprintf("La carga de 5 min es %.1f veces el número de núcleos, pero la CPU está %.0f%% libre. "+
+				"Puede indicar procesos esperando memoria o disco.", snap.LoadPerCore, snap.CPUIdlePct),
+			Action:   "No parece un problema de CPU: revisa las vistas Memory (m) y Disk; si persiste, un reinicio suele ayudar.",
+			Severity: SevMed,
 		})
 	}
 	if monitor.HighKernelTime(snap.CPUSysPct, snap.CPUUserPct) {
@@ -104,6 +113,15 @@ func loadInsights(snap AISnapshot) []Insight {
 		})
 	}
 	return out
+}
+
+// idleOf is the CPU idle share, or -1 when the split was not read (all three
+// zeros), so the classifier falls back to the load-only rule.
+func idleOf(snap AISnapshot) float64 {
+	if snap.CPUUserPct+snap.CPUSysPct+snap.CPUIdlePct <= 0 {
+		return -1
+	}
+	return snap.CPUIdlePct
 }
 
 // diskInsight maps disk usage bands to an urgency. Returns nil when there is no
