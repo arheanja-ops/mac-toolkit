@@ -1,7 +1,6 @@
 # 🖥 Mac Toolkit — Go CLI
 
 [![CI](https://github.com/arheanja-ops/mac-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/arheanja-ops/mac-toolkit/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/arheanja-ops/mac-toolkit.svg)](https://pkg.go.dev/github.com/arheanja-ops/mac-toolkit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 CLI nativo para macOS: limpieza de disco, monitoreo del sistema, y optimización.
@@ -10,12 +9,31 @@ Incluye una **TUI interactiva estilo k9s** (dos paneles + header en vivo). Binar
 
 ## Instalación
 
-### Con `go install` (recomendado)
+### Binario del release (recomendado)
+
+El repositorio es **privado**: se instala descargando el binario del release y
+verificando su checksum.
 
 ```bash
-go install github.com/arheanja-ops/mac-toolkit@latest
-mac-toolkit --help   # queda en $(go env GOPATH)/bin
+VERSION=v1.9.0                 # versión a instalar (ver Releases)
+ARCH=arm64                     # arm64 (Apple Silicon) o amd64 (Intel)
+TMP=$(mktemp -d)
+
+gh release download "$VERSION" --repo arheanja-ops/mac-toolkit \
+  -p "*darwin_${ARCH}.tar.gz" -p checksums.txt -D "$TMP"
+
+# Verificar el checksum antes de instalar (debe imprimir "OK")
+(cd "$TMP" && grep "darwin_${ARCH}" checksums.txt | shasum -a 256 -c -)
+
+tar -xzf "$TMP"/mac-toolkit_*_darwin_${ARCH}.tar.gz -C "$TMP"
+DEST="$(go env GOPATH)/bin/mac-toolkit"            # o cualquier directorio de tu PATH
+[ -f "$DEST" ] && cp -p "$DEST" "$DEST.prev"       # respaldo del binario actual
+install -m 755 "$TMP/mac-toolkit" "$DEST"
+
+mac-toolkit --version          # versión, commit y fecha reales
 ```
+
+Requiere la GitHub CLI (`gh`) con sesión que tenga acceso de lectura al repositorio.
 
 ### Desde el código fuente
 
@@ -25,11 +43,26 @@ cd mac-toolkit
 go build -o bin/toolkit .
 ./bin/toolkit --help
 
-# O instalar globalmente:
-make install  # → /usr/local/bin/toolkit
+# O instalar globalmente (escribe /usr/local/bin/toolkit):
+make install
 ```
 
-> Requisitos: macOS (Apple Silicon o Intel) y Go 1.25+.
+> Requisitos: macOS (Apple Silicon o Intel); Go 1.25+ solo para compilar desde el código.
+
+### Alternativa: `go install` (requiere acceso privado)
+
+El repositorio es privado, así que el proxy público de Go no puede descargarlo. Para
+usar `go install` necesitas que `go` salte el proxy para este módulo y que `git` ya
+pueda clonar el repo con tus credenciales (SSH o credential helper que tú gestionas;
+esta guía no modifica tu configuración de git). Puedes pasar el ajuste solo a ese comando:
+
+```bash
+GOPRIVATE=github.com/arheanja-ops/mac-toolkit \
+  go install github.com/arheanja-ops/mac-toolkit@vX.Y.Z
+```
+
+Instala en `$(go env GOPATH)/bin`. Con este método `--version` muestra la versión pero
+commit y fecha quedan como `none`/`unknown`.
 
 ### Versión (`--version`)
 
@@ -41,7 +74,7 @@ La versión se resuelve así (`cmd/root.go`, `resolveBuildInfo`):
 
 - **Binario del release (GoReleaser):** versión, commit y fecha inyectados por
   `-ldflags`.
-- **`go install ...@vX.Y.Z`:** no hay ldflags, así que la versión se lee de
+- **`go install ...@vX.Y.Z`** (requiere acceso privado): no hay ldflags, así que la versión se lee de
   `runtime/debug.ReadBuildInfo()`. Verificado con `@v1.7.1`:
   `mac-toolkit version v1.7.1 (commit none, built unknown)`.
 - **Build local en un checkout (`go build`):** el toolchain puede derivar la
@@ -367,8 +400,8 @@ O agrega manualmente el MCP server a cualquier agente:
 }
 ```
 
-> Si instalaste con `go install`, `mac-toolkit` estará en `$(go env GOPATH)/bin`
-> (asegúrate de tenerlo en el `PATH`). Alternativamente usa la ruta absoluta al
+> Si instalaste el binario del release en `$(go env GOPATH)/bin`, asegúrate de tenerlo
+> en el `PATH`. Alternativamente usa la ruta absoluta al
 > binario, p. ej. `$(go env GOPATH)/bin/mac-toolkit` o, si compilaste con
 > `make build`/`make install`, `./bin/toolkit` o `/usr/local/bin/toolkit`.
 

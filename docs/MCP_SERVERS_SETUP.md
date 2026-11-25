@@ -1,9 +1,8 @@
 # 🔌 MCP Servers Setup — Kiro Crew
 
-Configuración de 3 MCP servers para Kiro Crew:
+Configuración de MCP servers de uso general para Kiro Crew:
 1. Kubernetes (oficial)
 2. AWS (oficial awslabs)
-3. Backstage (bridge de Sebastián)
 
 ---
 
@@ -19,9 +18,6 @@ uvx --version
 
 # kubectl configurado
 kubectl get pods  # debe conectar a tu cluster
-
-# Para Backstage: MCP_TOKEN generado
-node -p 'require("crypto").randomBytes(24).toString("base64")'
 ```
 
 ---
@@ -79,7 +75,7 @@ node -p 'require("crypto").randomBytes(24).toString("base64")'
 
 ### Ejemplos de prompts:
 ```
-"¿Qué pods están corriendo en el namespace dev1?"
+"¿Qué pods están corriendo en el namespace dev?"
 "Muéstrame los logs del pod nginx-abc123"
 "¿Cuántas réplicas tiene el deployment api-gateway?"
 "¿Hay pods en CrashLoopBackOff?"
@@ -238,55 +234,7 @@ Ver: https://awslabs.github.io/mcp/
 
 ---
 
-## 3. Backstage MCP Server (bridge de Sebastián)
-
-**Fuente**: `nx-utility-backstage/scripts/backstage-mcp-bridge.js`
-
-### Prerequisitos:
-1. Backstage corriendo en `localhost:7007`
-2. Token MCP generado:
-   ```bash
-   export MCP_TOKEN=$(node -p 'require("crypto").randomBytes(24).toString("base64")')
-   ```
-
-### JSON para Kiro Crew → Add Custom:
-
-```json
-{
-  "mcpServers": {
-    "backstage": {
-      "command": "node",
-      "args": ["/Users/sebastian.ah/BA/BACKSTAGE/nx-utility-backstage/scripts/backstage-mcp-bridge.js"],
-      "env": {
-        "MCP_SERVER_URL": "http://localhost:7007/api/mcp-actions/v1",
-        "MCP_TOKEN": "<PEGAR-TOKEN-GENERADO>"
-      }
-    }
-  }
-}
-```
-
-> **Nota**: Reemplaza `<PEGAR-TOKEN-GENERADO>` con el token real. El path del bridge debe ser el correcto en la máquina donde corre Kiro Crew.
-
-### Tools disponibles:
-- `get-catalog-entity` — Info de una entidad del catálogo
-- `get-artifact-info` — Qué imagen/tag está deployada en un env
-- `get-environment-drift` — Drift de versiones en un env
-- `get-all-environment-drifts` — Cadena completa de promoción
-- `update-environment-variables` — Actualizar env vars (write)
-
-### Ejemplos de prompts:
-```
-"¿Qué equipo es dueño de nx-xp-payment y en qué lifecycle stage está?"
-"¿Qué image tag está deployada para nx-ch-web-homepage en SIT1?"
-"¿Todos los servicios en DEV1 están en la misma versión?"
-"Muéstrame la cadena de promoción completa de nx-ch-web-homepage"
-"Set FEATURE_FLAG_NEW_CHECKOUT=true en nx-bff-scaletest en dev1"
-```
-
----
-
-## Resumen — Los 3 servers en Kiro Crew
+## Resumen — Servers en Kiro Crew
 
 | Server | Command | Tools | Tipo |
 |--------|---------|-------|------|
@@ -296,7 +244,6 @@ Ver: https://awslabs.github.io/mcp/
 | `aws-ecs` | `uvx awslabs.ecs-mcp-server@latest` | ECS services/tasks | Stdio directo |
 | `aws-eks` | `uvx awslabs.eks-mcp-server@latest` | EKS clusters | Stdio directo |
 | `aws-sns-sqs` | `uvx awslabs.amazon-sns-sqs-mcp-server@latest` | Colas y notificaciones | Stdio directo |
-| `backstage` | `node backstage-mcp-bridge.js` | 5 (catalog, artifacts, drift, envvars) | Bridge HTTP→Stdio |
 | `mac-toolkit` | `mac-toolkit mcp` | 12 (disk, battery, system, procs, net, status, clean, docker, doctor) | Stdio directo |
 
 ---
@@ -314,12 +261,11 @@ Para cada server:
 ### Recomendación de orden:
 1. Primero `kubernetes` (más útil para DevOps day-to-day)
 2. Luego `aws-cloudwatch` + `aws-ecs` (observabilidad)
-3. Después `backstage` (self-service)
-4. El resto de AWS según lo necesites
+3. El resto de AWS según lo necesites
 
 ---
 
-*Última actualización: 2026-08-28 (fila de `mac-toolkit` actualizada a v1.7.1: 12 tools)*
+*Última actualización: 2026-11 (fila de `mac-toolkit` actualizada a v1.7.1: 12 tools)*
 
 ---
 

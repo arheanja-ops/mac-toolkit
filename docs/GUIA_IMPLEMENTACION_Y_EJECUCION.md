@@ -8,7 +8,7 @@ lecturas del sistema.
 
 - Módulo Go: `mac-toolkit`
 - Entrypoint: `main.go` → `cmd.Execute()` (Cobra)
-- Binario: `bin/toolkit` con `make build`; `mac-toolkit` con `go install` o el release
+- Binario: `bin/toolkit` con `make build`; `mac-toolkit` con el binario del release
 
 ---
 
@@ -34,8 +34,9 @@ si se pasa `--execute` explícitamente.
 El método recomendado instala el binario como `mac-toolkit` en el PATH:
 
 ```bash
-# Instala mac-toolkit en $(go env GOPATH)/bin
-go install github.com/arheanja-ops/mac-toolkit@latest
+# El repo es privado: descarga el release con gh, verifica el checksum e instala
+# en $(go env GOPATH)/bin (pasos completos en README.md → Instalación)
+gh release download vX.Y.Z --repo arheanja-ops/mac-toolkit -p '*darwin_arm64.tar.gz' -p checksums.txt
 
 # Verificar
 mac-toolkit --help
@@ -214,7 +215,7 @@ TUI (`d`) y en la tool MCP `mac_doctor`.
 
 ```bash
 ./bin/toolkit mcp         # arranca servidor MCP por stdio (build local)
-# o, si instalaste con go install:
+# o, si lo instalaste en $(go env GOPATH)/bin:
 mac-toolkit mcp
 ```
 

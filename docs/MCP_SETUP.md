@@ -82,15 +82,13 @@ un audit log (`approval_mode: "mcp"`). Sin la variable, usa la terminal:
 
 Instala el binario `mac-toolkit` en tu `PATH`:
 
-```bash
-go install github.com/arheanja-ops/mac-toolkit@latest
-```
-
-Esto instala `mac-toolkit` en `$(go env GOPATH)/bin`. Verifica que esté disponible:
+El repositorio es privado: descarga el binario del release con `gh release download`,
+verifica el checksum e instálalo en `$(go env GOPATH)/bin` (pasos completos en el
+[README](../README.md#instalación)). Verifica que esté disponible:
 
 ```bash
 which mac-toolkit
-# → /Users/<usuario>/go/bin/mac-toolkit
+# → $HOME/go/bin/mac-toolkit
 ```
 
 > Alternativa: clona el repo (`git clone https://github.com/arheanja-ops/mac-toolkit.git`) y compila con `make build` para generar `./bin/toolkit`.
@@ -116,7 +114,7 @@ Pegar esta configuración:
 }
 ```
 
-> **Nota**: No necesita `MCP_TOKEN` ni bridge Node.js. A diferencia del Backstage MCP que usa un bridge HTTP, el Mac Toolkit es un MCP server nativo que habla JSON-RPC directo por stdio. Kiro Crew ejecuta el binario como proceso hijo.
+> **Nota**: No necesita `MCP_TOKEN` ni bridge Node.js. A diferencia de los servers que usan un bridge HTTP, el Mac Toolkit es un MCP server nativo que habla JSON-RPC directo por stdio. Kiro Crew ejecuta el binario como proceso hijo.
 
 ### Paso 3: Apply
 
@@ -137,16 +135,6 @@ En el chat de Kiro Crew, las herramientas aparecerán como:
 - `@mac-toolkit/mac_clean_batch`
 - `@mac-toolkit/mac_docker_cleanup`
 - `@mac-toolkit/mac_docker_backup`
-
-### Comparación con Backstage MCP
-
-| Aspecto | Backstage MCP | Mac Toolkit MCP |
-|---------|--------------|-----------------|
-| Transporte | HTTP bridge (Node.js) | Stdio directo (binario Go) |
-| Auth | MCP_TOKEN requerido | No necesita (ejecución local) |
-| Bridge | `backstage-mcp-bridge.js` | No necesita |
-| Backend | Backstage API (localhost:7007) | Binario local |
-| Runtime | Node.js + uvx | Binario Go (sin deps) |
 
 ---
 
@@ -197,7 +185,7 @@ Crear `.kiro/settings/mcp.json` en el directorio del proyecto:
 ### Opción A: Usar el agente `mac-ops`
 
 ```bash
-cd /Users/jaime.henao/arheanja/scripts-hub/scripts-mac/mac-toolkit
+cd <ruta-del-repo>
 kiro-cli chat --agent mac-ops
 ```
 
