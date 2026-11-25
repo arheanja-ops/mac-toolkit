@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Documentación: la instalación pasa a ser por el binario del release con verificación de
-  checksum (el repositorio es privado); `go install` queda como alternativa con acceso
-  privado. Se retiraron datos de entorno ajenos al proyecto de las guías y ejemplos.
+- Docs: instalación de nuevo vía go install (repo público); el binario del release con
+  verificación de checksum queda como alternativa. Se retiraron datos de entorno ajenos al
+  proyecto de las guías y ejemplos.
 
 ## [1.9.0] - 2026-11-25
 

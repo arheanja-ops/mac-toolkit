@@ -110,5 +110,5 @@ usuario lo note. Debe diseñarse en su propia spec antes de escribir código:
 ## 📋 Flujo (recordatorio)
 
 rama → PR → CI verde → merge squash → (si hay versión) tag vX.Y.Z → release →
-binario del release + checksum (el repo es privado). Los PRs solo de docs no llevan tag. Nunca a main directo.
+`go install` (el repo es público; alternativa: binario del release + checksum). Los PRs solo de docs no llevan tag. Nunca a main directo.
 `git add` con rutas explícitas. Detalle: docs/RELEASE_WORKFLOW.md.
