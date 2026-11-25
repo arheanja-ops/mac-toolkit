@@ -15,7 +15,7 @@ fin, incluyendo cómo actualizar el binario en local.
 feature branch → PR → CI (vet·test·build) → merge a main
       → tag vX.Y.Z → push tag → Release workflow (GoReleaser)
       → GitHub Release con binarios darwin arm64/amd64
-      → actualización local (go install | brew | tar.gz | make)
+      → actualización local (binario del release | go install privado | make)
 ```
 
 | Etapa | Qué corre | Dónde |
@@ -160,36 +160,42 @@ gh release view v1.8.0               # confirma binarios y changelog
 
 Tras publicar el release, actualiza tu instalación. Elige **una** opción:
 
-### Opción A — `go install` (recomendada, más simple)
+### Opción A — Binario del release (recomendada; el repo es privado)
 
 ```bash
-go install github.com/arheanja-ops/mac-toolkit@v1.7.1   # versión exacta
-# o la última:
-go install github.com/arheanja-ops/mac-toolkit@latest
+VERSION=v1.9.0                 # versión a instalar (ver Releases)
+ARCH=arm64                     # arm64 (Apple Silicon) o amd64 (Intel)
+TMP=$(mktemp -d)
 
-mac-toolkit --version        # confirma la versión instalada
+gh release download "$VERSION" --repo arheanja-ops/mac-toolkit \
+  -p "*darwin_${ARCH}.tar.gz" -p checksums.txt -D "$TMP"
+
+# Verificar el checksum antes de instalar (debe imprimir "OK")
+(cd "$TMP" && grep "darwin_${ARCH}" checksums.txt | shasum -a 256 -c -)
+
+tar -xzf "$TMP"/mac-toolkit_*_darwin_${ARCH}.tar.gz -C "$TMP"
+DEST="$(go env GOPATH)/bin/mac-toolkit"            # o cualquier directorio de tu PATH
+[ -f "$DEST" ] && cp -p "$DEST" "$DEST.prev"       # respaldo del binario actual
+install -m 755 "$TMP/mac-toolkit" "$DEST"
+
+mac-toolkit --version          # versión, commit y fecha reales
 ```
 
-Queda en `$(go env GOPATH)/bin` — asegúrate de tenerlo en el `PATH`.
+Requiere la GitHub CLI (`gh`) con sesión que tenga acceso de lectura al repositorio.
 
-### Opción B — Descargar el binario del release
+### Opción B — `go install` (requiere acceso privado)
 
 ```bash
-VERSION=v1.7.1
-ARCH=arm64                   # arm64 (Apple Silicon) o amd64 (Intel)
-BASE=https://github.com/arheanja-ops/mac-toolkit/releases/download/$VERSION
+GOPRIVATE=github.com/arheanja-ops/mac-toolkit \
+  go install github.com/arheanja-ops/mac-toolkit@vX.Y.Z
 
-curl -fsSL -o mac-toolkit.tar.gz \
-  "$BASE/mac-toolkit_${VERSION#v}_darwin_${ARCH}.tar.gz"
-
-# (Opcional pero recomendado) verificar checksum
-curl -fsSL -o checksums.txt "$BASE/checksums.txt"
-shasum -a 256 -c checksums.txt --ignore-missing
-
-tar -xzf mac-toolkit.tar.gz
-sudo mv mac-toolkit /usr/local/bin/
-mac-toolkit --version
+mac-toolkit --version        # versión; commit y fecha: none/unknown
 ```
+
+El repo es privado: `go` debe saltar el proxy público para este módulo (`GOPRIVATE`, aquí
+solo para ese comando) y `git` debe poder clonar el repo con tus credenciales. No
+cambies la configuración global de git por este flujo; si no tienes acceso configurado,
+usa la Opción A.
 
 ### Opción C — Build desde el código fuente (para probar cambios locales sin release)
 
@@ -204,10 +210,10 @@ make install                 # → /usr/local/bin/toolkit
 ```
 
 > **Qué muestra `--version`** (`cmd/root.go`, `resolveBuildInfo`): los ldflags de
-> versión, commit y fecha solo los inyecta GoReleaser en el release (Opción B).
-> Con `go install ...@vX.Y.Z` (Opción A) ya se muestra la versión del tag, leída
+> versión, commit y fecha solo los inyecta GoReleaser en el release (Opción A).
+> Con `go install ...@vX.Y.Z` (Opción B) ya se muestra la versión del tag, leída
 > de `runtime/debug.ReadBuildInfo()`, pero el commit y la fecha quedan como
-> `none`/`unknown` (verificado con `@v1.7.1`). Un build local en un checkout
+> `none`/`unknown` . Un build local en un checkout
 > (Opción C) puede mostrar una versión derivada del VCS (p. ej. `v1.7.1+dirty`) o
 > `dev`, según el toolchain. Para ver commit y fecha reales, usa el binario del
 > release.
@@ -239,7 +245,7 @@ git tag -a vX.Y.Z -m "vX.Y.Z — ..."
 git push origin vX.Y.Z
 gh run watch && gh release view vX.Y.Z
 
-# 6. Actualizar local
-go install github.com/arheanja-ops/mac-toolkit@vX.Y.Z
+# 6. Actualizar local (binario del release + checksum; ver sección 5, Opción A)
+gh release download vX.Y.Z --repo arheanja-ops/mac-toolkit -p '*darwin_arm64.tar.gz' -p checksums.txt -D "$TMP"
 mac-toolkit --version
 ```

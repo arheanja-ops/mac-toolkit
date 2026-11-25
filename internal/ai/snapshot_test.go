@@ -20,7 +20,7 @@ func TestBuildSnapshot_NoPII(t *testing.T) {
 			TotalSize: 5 * gb,
 			Items: []core.CleanableItem{
 				{
-					Path:         "/Users/jaime.henao/arheanja/secret-repo/node_modules",
+					Path:         "/Users/someone/secret-repo/node_modules",
 					Label:        "node_modules (secret-repo)",
 					SizeBytes:    5 * gb,
 					SafeToDelete: true,
@@ -33,7 +33,7 @@ func TestBuildSnapshot_NoPII(t *testing.T) {
 			Severity:  core.SeverityMedium,
 			TotalSize: 2 * gb,
 			Items: []core.CleanableItem{
-				{Path: "/Users/jaime.henao/Downloads/private-tax-return.pdf", Label: "tax", SizeBytes: 2 * gb, Risk: core.RiskWarn},
+				{Path: "/Users/someone/Downloads/private-tax-return.pdf", Label: "tax", SizeBytes: 2 * gb, Risk: core.RiskWarn},
 			},
 		},
 	}
@@ -49,7 +49,7 @@ func TestBuildSnapshot_NoPII(t *testing.T) {
 	blob := string(raw)
 
 	forbidden := []string{
-		"/Users/jaime.henao",
+		"/Users/someone",
 		"secret-repo",
 		"node_modules",
 		"private-tax-return.pdf",

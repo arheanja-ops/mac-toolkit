@@ -10,11 +10,11 @@ For Kiro-specific setup, see [MCP_SETUP.md](MCP_SETUP.md).
 
 ## Prerequisite: install the binary
 
-```bash
-go install github.com/arheanja-ops/mac-toolkit@latest
-```
+The repository is private: download the release binary with `gh release download vX.Y.Z
+-p '*darwin_arm64.tar.gz' -p checksums.txt`, verify it with `shasum -a 256 -c` and install it
+(full steps: [README](../README.md#instalación)). Alternatively, from a clone, run `make install`.
 
-This puts `mac-toolkit` in `$(go env GOPATH)/bin`. Make sure that directory is on your
+Put `mac-toolkit` in `$(go env GOPATH)/bin`. Make sure that directory is on your
 `PATH` so clients can find it. Verify:
 
 ```bash

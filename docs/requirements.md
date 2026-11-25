@@ -258,7 +258,7 @@ is attack surface and maintenance burden.
 
 | Original text | Shipped state (v1.7.1) |
 | ------------- | ---------------------- |
-| Binary called `toolkit` | Command is `mac-toolkit` (`go install`, release); `make build` still writes `bin/toolkit` |
+| Binary called `toolkit` | Command is `mac-toolkit` (release binary, or `go install` with private access); `make build` still writes `bin/toolkit` |
 | No subcommand → huh/bubbletea menu | No subcommand → two-pane TUI; the menu is `mac-toolkit menu` (promptui) |
 | "Global flags" `--execute`, `--domain`, `--mode`, `--save`, `--last`, `--timeout` | Per-command flags: `analyze` (`--domain`, `--min-size`, `--save`), `clean` (`--domain`, `--execute`, `--mode`), `full` (`--execute`, `--mode`), `report` (`--last`), `doctor` (`--no-ai`, `--json`); only `-v/--verbose` is global |
 | Go 1.22+ | `go 1.25.0` in `go.mod` |

@@ -14,8 +14,8 @@ The existing `docker.go` analyzer only reports the `.raw` file size. It doesn't 
 
 ### F1: `toolkit docker backup <container>`
 
-**CLI:** `toolkit docker backup backstage-postgres`
-**MCP:** `mac_docker_backup { container: "backstage-postgres" }`
+**CLI:** `toolkit docker backup <contenedor>`
+**MCP:** `mac_docker_backup { container: "<contenedor>" }`
 
 Behavior:
 1. `docker inspect <container>` → extract `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` from env vars
@@ -31,8 +31,8 @@ Constraints:
 
 ### F2: `toolkit docker cleanup --keep <container>`
 
-**CLI:** `toolkit docker cleanup --keep backstage-postgres`
-**MCP:** `mac_docker_cleanup { keep: "backstage-postgres", dry_run: true }`
+**CLI:** `toolkit docker cleanup --keep <contenedor>`
+**MCP:** `mac_docker_cleanup { keep: "<contenedor>", dry_run: true }`
 
 Behavior:
 1. List all containers (`docker ps -a`)
