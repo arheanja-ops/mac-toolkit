@@ -82,8 +82,9 @@ un audit log (`approval_mode: "mcp"`). Sin la variable, usa la terminal:
 
 Instala el binario `mac-toolkit` en tu `PATH`:
 
-El repositorio es privado: descarga el binario del release con `gh release download`,
-verifica el checksum e instálalo en `$(go env GOPATH)/bin` (pasos completos en el
+Usa `go install github.com/arheanja-ops/mac-toolkit@latest` (instala en
+`$(go env GOPATH)/bin`). Si quieres el binario con commit y fecha, descarga el release con
+`gh release download` y verifica el checksum (pasos completos en el
 [README](../README.md#instalación)). Verifica que esté disponible:
 
 ```bash

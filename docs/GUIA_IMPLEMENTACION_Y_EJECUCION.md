@@ -34,8 +34,10 @@ si se pasa `--execute` explícitamente.
 El método recomendado instala el binario como `mac-toolkit` en el PATH:
 
 ```bash
-# El repo es privado: descarga el release con gh, verifica el checksum e instala
-# en $(go env GOPATH)/bin (pasos completos en README.md → Instalación)
+go install github.com/arheanja-ops/mac-toolkit@latest      # o @vX.Y.Z
+
+# Alternativa con commit y fecha: binario del release + checksum
+# (pasos completos en README.md → Instalación)
 gh release download vX.Y.Z --repo arheanja-ops/mac-toolkit -p '*darwin_arm64.tar.gz' -p checksums.txt
 
 # Verificar

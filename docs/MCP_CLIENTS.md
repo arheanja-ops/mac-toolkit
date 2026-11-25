@@ -10,8 +10,9 @@ For Kiro-specific setup, see [MCP_SETUP.md](MCP_SETUP.md).
 
 ## Prerequisite: install the binary
 
-The repository is private: download the release binary with `gh release download vX.Y.Z
--p '*darwin_arm64.tar.gz' -p checksums.txt`, verify it with `shasum -a 256 -c` and install it
+Install with `go install github.com/arheanja-ops/mac-toolkit@latest` (or `@vX.Y.Z`).
+To get the binary with real commit and date, download the release with `gh release download
+vX.Y.Z -p '*darwin_arm64.tar.gz' -p checksums.txt` and verify it with `shasum -a 256 -c`
 (full steps: [README](../README.md#instalación)). Alternatively, from a clone, run `make install`.
 
 Put `mac-toolkit` in `$(go env GOPATH)/bin`. Make sure that directory is on your

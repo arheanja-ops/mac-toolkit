@@ -15,7 +15,7 @@ fin, incluyendo cómo actualizar el binario en local.
 feature branch → PR → CI (vet·test·build) → merge a main
       → tag vX.Y.Z → push tag → Release workflow (GoReleaser)
       → GitHub Release con binarios darwin arm64/amd64
-      → actualización local (binario del release | go install privado | make)
+      → actualización local (go install | binario del release | make)
 ```
 
 | Etapa | Qué corre | Dónde |
@@ -160,7 +160,17 @@ gh release view v1.8.0               # confirma binarios y changelog
 
 Tras publicar el release, actualiza tu instalación. Elige **una** opción:
 
-### Opción A — Binario del release (recomendada; el repo es privado)
+### Opción A — `go install` (recomendada)
+
+```bash
+go install github.com/arheanja-ops/mac-toolkit@latest      # o @vX.Y.Z
+
+mac-toolkit --version        # versión; commit y fecha: none/unknown
+```
+
+Si quieres el binario con commit y fecha reales, usa la Opción B.
+
+### Opción B — Binario del release (con commit y fecha)
 
 ```bash
 VERSION=v1.9.0                 # versión a instalar (ver Releases)
@@ -181,21 +191,7 @@ install -m 755 "$TMP/mac-toolkit" "$DEST"
 mac-toolkit --version          # versión, commit y fecha reales
 ```
 
-Requiere la GitHub CLI (`gh`) con sesión que tenga acceso de lectura al repositorio.
-
-### Opción B — `go install` (requiere acceso privado)
-
-```bash
-GOPRIVATE=github.com/arheanja-ops/mac-toolkit \
-  go install github.com/arheanja-ops/mac-toolkit@vX.Y.Z
-
-mac-toolkit --version        # versión; commit y fecha: none/unknown
-```
-
-El repo es privado: `go` debe saltar el proxy público para este módulo (`GOPRIVATE`, aquí
-solo para ese comando) y `git` debe poder clonar el repo con tus credenciales. No
-cambies la configuración global de git por este flujo; si no tienes acceso configurado,
-usa la Opción A.
+Requiere la GitHub CLI (`gh`).
 
 ### Opción C — Build desde el código fuente (para probar cambios locales sin release)
 
@@ -210,8 +206,8 @@ make install                 # → /usr/local/bin/toolkit
 ```
 
 > **Qué muestra `--version`** (`cmd/root.go`, `resolveBuildInfo`): los ldflags de
-> versión, commit y fecha solo los inyecta GoReleaser en el release (Opción A).
-> Con `go install ...@vX.Y.Z` (Opción B) ya se muestra la versión del tag, leída
+> versión, commit y fecha solo los inyecta GoReleaser en el release (Opción B).
+> Con `go install ...@vX.Y.Z` (Opción A) ya se muestra la versión del tag, leída
 > de `runtime/debug.ReadBuildInfo()`, pero el commit y la fecha quedan como
 > `none`/`unknown` . Un build local en un checkout
 > (Opción C) puede mostrar una versión derivada del VCS (p. ej. `v1.7.1+dirty`) o
@@ -245,7 +241,8 @@ git tag -a vX.Y.Z -m "vX.Y.Z — ..."
 git push origin vX.Y.Z
 gh run watch && gh release view vX.Y.Z
 
-# 6. Actualizar local (binario del release + checksum; ver sección 5, Opción A)
+# 6. Actualizar local (go install, o binario del release + checksum; ver sección 5)
+go install github.com/arheanja-ops/mac-toolkit@vX.Y.Z
 gh release download vX.Y.Z --repo arheanja-ops/mac-toolkit -p '*darwin_arm64.tar.gz' -p checksums.txt -D "$TMP"
 mac-toolkit --version
 ```

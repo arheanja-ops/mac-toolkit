@@ -27,9 +27,18 @@ Guía de referencia para el Mac Toolkit: CLI nativa en Go para supervisión, lim
 
 ## Instalación
 
-### Recomendado: binario del release
+### Recomendado: `go install`
 
-El repositorio es privado: descarga el release con `gh`, verifica el checksum e instala.
+```bash
+go install github.com/arheanja-ops/mac-toolkit@latest      # o @vX.Y.Z
+```
+
+Instala en `$(go env GOPATH)/bin`. Con este método `--version` muestra la versión pero
+commit y fecha quedan como `none`/`unknown`.
+
+### Alternativa: binario del release (con commit y fecha)
+
+Descarga el release con `gh`, verifica el checksum e instala.
 
 ```bash
 VERSION=v1.9.0                 # versión a instalar (ver Releases)
@@ -50,9 +59,9 @@ install -m 755 "$TMP/mac-toolkit" "$DEST"
 mac-toolkit --version          # versión, commit y fecha reales
 ```
 
-Requiere la GitHub CLI (`gh`) con sesión que tenga acceso de lectura al repositorio.
+Requiere la GitHub CLI (`gh`).
 
-### Desde código fuente
+### Alternativa: desde código fuente
 
 ```bash
 git clone https://github.com/arheanja-ops/mac-toolkit.git
@@ -60,21 +69,6 @@ cd mac-toolkit
 make build     # genera ./bin/toolkit
 make install   # alternativa: escribe /usr/local/bin/toolkit
 ```
-
-### Alternativa: `go install` (requiere acceso privado)
-
-El repositorio es privado, así que el proxy público de Go no puede descargarlo. Para
-usar `go install` necesitas que `go` salte el proxy para este módulo y que `git` ya
-pueda clonar el repo con tus credenciales (SSH o credential helper que tú gestionas;
-esta guía no modifica tu configuración de git). Puedes pasar el ajuste solo a ese comando:
-
-```bash
-GOPRIVATE=github.com/arheanja-ops/mac-toolkit \
-  go install github.com/arheanja-ops/mac-toolkit@vX.Y.Z
-```
-
-Instala en `$(go env GOPATH)/bin`. Con este método `--version` muestra la versión pero
-commit y fecha quedan como `none`/`unknown`.
 
 ### Verificar
 

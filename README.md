@@ -1,6 +1,7 @@
 # 🖥 Mac Toolkit — Go CLI
 
 [![CI](https://github.com/arheanja-ops/mac-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/arheanja-ops/mac-toolkit/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/arheanja-ops/mac-toolkit.svg)](https://pkg.go.dev/github.com/arheanja-ops/mac-toolkit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 CLI nativo para macOS: limpieza de disco, monitoreo del sistema, y optimización.
@@ -9,10 +10,18 @@ Incluye una **TUI interactiva estilo k9s** (dos paneles + header en vivo). Binar
 
 ## Instalación
 
-### Binario del release (recomendado)
+### Recomendado: `go install`
 
-El repositorio es **privado**: se instala descargando el binario del release y
-verificando su checksum.
+```bash
+go install github.com/arheanja-ops/mac-toolkit@latest      # o @vX.Y.Z para fijar versión
+```
+
+Instala en `$(go env GOPATH)/bin`. Con este método `--version` muestra la versión pero
+commit y fecha quedan como `none`/`unknown`.
+
+### Alternativa: binario del release (con commit y fecha)
+
+Descarga el binario del release y verifica su checksum cuando quieras commit y fecha reales.
 
 ```bash
 VERSION=v1.9.0                 # versión a instalar (ver Releases)
@@ -33,9 +42,9 @@ install -m 755 "$TMP/mac-toolkit" "$DEST"
 mac-toolkit --version          # versión, commit y fecha reales
 ```
 
-Requiere la GitHub CLI (`gh`) con sesión que tenga acceso de lectura al repositorio.
+Requiere la GitHub CLI (`gh`).
 
-### Desde el código fuente
+### Alternativa: desde el código fuente
 
 ```bash
 git clone https://github.com/arheanja-ops/mac-toolkit.git
@@ -49,21 +58,6 @@ make install
 
 > Requisitos: macOS (Apple Silicon o Intel); Go 1.25+ solo para compilar desde el código.
 
-### Alternativa: `go install` (requiere acceso privado)
-
-El repositorio es privado, así que el proxy público de Go no puede descargarlo. Para
-usar `go install` necesitas que `go` salte el proxy para este módulo y que `git` ya
-pueda clonar el repo con tus credenciales (SSH o credential helper que tú gestionas;
-esta guía no modifica tu configuración de git). Puedes pasar el ajuste solo a ese comando:
-
-```bash
-GOPRIVATE=github.com/arheanja-ops/mac-toolkit \
-  go install github.com/arheanja-ops/mac-toolkit@vX.Y.Z
-```
-
-Instala en `$(go env GOPATH)/bin`. Con este método `--version` muestra la versión pero
-commit y fecha quedan como `none`/`unknown`.
-
 ### Versión (`--version`)
 
 ```bash
@@ -74,7 +68,7 @@ La versión se resuelve así (`cmd/root.go`, `resolveBuildInfo`):
 
 - **Binario del release (GoReleaser):** versión, commit y fecha inyectados por
   `-ldflags`.
-- **`go install ...@vX.Y.Z`** (requiere acceso privado): no hay ldflags, así que la versión se lee de
+- **`go install ...@vX.Y.Z`**: no hay ldflags, así que la versión se lee de
   `runtime/debug.ReadBuildInfo()`. Verificado con `@v1.7.1`:
   `mac-toolkit version v1.7.1 (commit none, built unknown)`.
 - **Build local en un checkout (`go build`):** el toolchain puede derivar la
