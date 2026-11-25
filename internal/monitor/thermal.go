@@ -68,3 +68,14 @@ func IsThermalAlert(state string) bool {
 		return false
 	}
 }
+
+// parseSpeedLimit reads CPU_Speed_Limit (percent of full speed) from
+// `pmset -g therm`; ok is false when the line is absent.
+func parseSpeedLimit(out string) (int, bool) {
+	m := reSpeedLimit.FindStringSubmatch(strings.ToLower(out))
+	if len(m) < 2 {
+		return 0, false
+	}
+	v, err := strconv.Atoi(m[1])
+	return v, err == nil
+}

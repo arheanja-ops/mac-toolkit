@@ -244,7 +244,7 @@ import "github.com/user/mac-toolkit/internal/core"
 type Reporter interface {
     // Report renders the analysis results.
     // For terminal: prints to stdout.
-    // For file-based reporters: writes to reports/ directory.
+    // For file-based reporters: writes to the canonical reports folder (`core.ReportsDir()`).
     Report(results []core.AnalysisResult) error
 }
 ```
@@ -421,7 +421,7 @@ It needs a TTY; without one it returns an error that suggests `mac-toolkit menu`
 | `tui.go` | `Run`: TTY check, `tea.NewProgram(..., tea.WithAltScreen())` |
 | `model.go` | Model, `Update`/`View`, key routing per mode, footer hints |
 | `actions.go` | `buildActions()`: Disk (Analyze, Status, Doctor), Clean (Preview, Select & clean), Monitors, Reports, Session (Quit); formatters for analysis/status/monitors |
-| `header.go` | Live header (disk, memory, CPU, thermal), refresh every 2 s, degrades field by field |
+| `header.go` | Live header (disk, memory, CPU, thermal), refreshes on its own, degrades field by field |
 | `welcome.go` | Welcome dashboard shown on open |
 | `layout.go`, `styles.go`, `delegate.go` | Width math, truncation, palette, list delegate with selection caret |
 | `clean.go` | Clean flow: `buildCleanRows`, `toggleMark`, `markAllSafe`, `runCleanCmd`, `writeCleanAudit` |
@@ -529,6 +529,19 @@ is `Unknown` ("ignorance must not raise an alarm"). `IsThermalAlert` is an allow
 | Integration tests, symlink blacklist tests (section 7) | Not present; the suite is 108 top-level tests (167 with subtests) across `cmd`, `ai`, `analyzer`, `cleaner`, `core`, `monitor`, `tui` |
 | MCP server version | `mcp.Implementation.Version` is a fixed `"1.0.0"` in `cmd/mcp.go` |
 
+
+## v1.9.0 — Categories, process views and reports
+
+- `internal/core/reports.go`: `ReportsDir()` = `os.UserConfigDir()/mac-toolkit/reports`
+  (absolute; `ReportsDirOverride` only for tests), `NewReportDir`, `ListReports`,
+  `LatestReport`. `internal/reporter/save.go`: `SaveAnalysis`, the single save path
+  (`report`, `analyze --save`, `full`, TUI). The audit log lives in the same folder.
+- `internal/monitor`: exported `ProcInfo`/`ProcSummary`; `ClassifyLoad(ratio, idle)`
+  adds the "high load, idle CPU" verdict; `cpusample.go` reads the CPU split from
+  `iostat -c 2 -w 1`; `SystemMonitor{Light}` skips `system_profiler` for the header.
+- `internal/tui`: `menu.go` draws the category menu itself (the `bubbles/list` keeps only
+  state), `processes_view.go`, `reports_view.go`; every view is a `viewID` with a runner.
+- Spec: `docs/specs/2026-11-25-tui-categories.md`.
 
 ## v1.8.0 — Memory and CPU views
 

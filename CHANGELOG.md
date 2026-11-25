@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-25
+
+### Added
+- **Menú de la TUI por categorías**: HEALTH, DISK, CLEAN, MEMORY, CPU, PROCESSES, SYSTEM,
+  REPORTS y SESSION. El cursor salta las cabeceras y la categoría activa siempre se ve
+  (cabe en 80x24).
+- **Vistas nuevas** (solo lectura): Memory (Overview, Swap & paging, Top apps), CPU
+  (Overview, Load, Top apps, Thermal), Processes (Top by CPU, Top by memory, By app,
+  Summary) y Reports (Last report, Saved reports, Save report). `r` refresca cualquiera.
+- **Save report** en la TUI: guarda `report.md` y `report.json` en la carpeta de reportes
+  y muestra la ruta (única entrada que escribe, solo ahí).
+- Insight de `doctor` "Carga alta con CPU libre"; el snapshot de IA añade solo
+  `cpu_idle_pct` (número).
+
+### Fixed
+- **Processes en la TUI** mostraba datos crudos de Go; ahora son tablas por ancho.
+- **Last report** decía "no reports found" según el directorio desde el que se lanzaba;
+  ahora usa una carpeta fija y, sin reportes, explica cómo crear el primero.
+- **CPU% del header y de `system`**: venía del acumulado desde el arranque y costaba
+  ~1.4 s de CPU por lectura; ahora sale del intervalo de 1 s de `iostat` (~0 CPU).
+- **Veredicto "Saturada"** con la CPU casi ociosa: con carga alta e idle > 50 % ahora dice
+  "Carga alta con CPU libre: procesos esperando memoria o disco".
+- El footer de la TUI ya no trunca `q salir` en terminales de ~100–120 columnas.
+
+### Changed
+- **Ubicación de reportes y audit**: de `reports/` relativo al directorio de trabajo a
+  `os.UserConfigDir()/mac-toolkit/reports` (en macOS `~/Library/Application Support/
+  mac-toolkit/reports`). Los reportes anteriores no se migran.
+
 ## [1.8.0] - 2026-11-23
 
 ### Added

@@ -26,6 +26,7 @@ func (m *MemoryMonitor) Snapshot() (map[string]any, error) {
 	addPressure(data)
 	addSwap(data, u)
 	addUptime(data)
+	addPaging(data, u)
 	if rows, err := readProcRows(); err == nil {
 		data["top_memory"] = topApps(aggregateApps(rows), topAppsN, true)
 	}
@@ -80,6 +81,31 @@ func addSwap(data map[string]any, u memUsage) {
 	data["swap_total_mb"] = total
 	data["swap_used_mb"] = used
 	data["swap_thrash"] = HeavyPaging(used, total, gb(u.vm.Swapouts), float64(u.totalBytes)/gibBytes)
+}
+
+// addPaging records the page-in/out counters (cumulative since boot), their
+// average hourly rate (needs uptime), the compressor size and its ratio, and a
+// cautious verdict. Rates are averages since boot, not the current rate: the
+// toolkit keeps no history, so it cannot say what is happening right now.
+func addPaging(data map[string]any, u memUsage) {
+	vm := u.vm
+	gb := func(pages int64) float64 { return float64(vm.bytes(pages)) / gibBytes }
+	data["pageins_gb"] = gb(vm.Pageins)
+	data["pageouts_gb"] = gb(vm.Pageouts)
+	data["compressor_stored_gb"] = gb(vm.Stored)
+	if vm.Compressed > 0 && vm.Stored > 0 {
+		data["compression_ratio"] = float64(vm.Stored) / float64(vm.Compressed)
+	}
+	data["paging_verdict"] = PagingOK
+	if th, _ := data["swap_thrash"].(bool); th {
+		data["paging_verdict"] = NoteHeavyPaging
+	}
+	if h, ok := data["uptime_hours"].(float64); ok && h > 0 {
+		data["swapins_gb_per_h"] = gb(vm.Swapins) / h
+		data["swapouts_gb_per_h"] = gb(vm.Swapouts) / h
+		data["pageins_gb_per_h"] = gb(vm.Pageins) / h
+		data["pageouts_gb_per_h"] = gb(vm.Pageouts) / h
+	}
 }
 
 func addUptime(data map[string]any) {

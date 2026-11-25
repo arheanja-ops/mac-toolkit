@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,7 +18,15 @@ func TestMain(m *testing.M) {
 	systemSnapshotFn = func() (map[string]any, error) {
 		return map[string]any{"memory_percent": 50.0, "cpu_percent": 10.0, "thermal": "Normal"}, nil
 	}
-	os.Exit(m.Run())
+	// Reports never touch the real folder: every test reads/writes a temp dir.
+	dir, err := os.MkdirTemp("", "toolkit-reports-")
+	if err != nil {
+		panic(err)
+	}
+	core.ReportsDirOverride = dir
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
 }
 
 // sampleMemory is a synthetic, generic snapshot (no real app names).
@@ -209,31 +218,24 @@ func TestPreviousShortcutsStillWork(t *testing.T) {
 	})
 }
 
-func TestMemoryCPUActionsInMonitorsGroupAfterSystem(t *testing.T) {
-	var labels []string
-	for _, a := range buildActions() {
-		if a.group == "Monitors" {
-			labels = append(labels, a.label)
-		}
-	}
-	got := strings.Join(labels, ",")
-	if !strings.Contains(got, "System,Memory,CPU") {
-		t.Fatalf("Memory and CPU must follow System in Monitors, got %s", got)
-	}
-}
-
-func TestEnterOnMemoryActionOpensView(t *testing.T) {
+func TestEnterOnMemoryOverviewOpensView(t *testing.T) {
 	withViews(func() {
 		m := sizedModel()
-		for i := 0; i < 40 && m.actions.SelectedItem().(listItem).action.label != memoryLabel; i++ {
+		for i := 0; i < 40 && !isItem(m, "Memory", "Overview"); i++ {
 			nm, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
 			m = nm.(model)
 		}
 		nm, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 		if cmd == nil || nm.(model).openView != viewMemory {
-			t.Fatal("Enter on Memory should open the memory view")
+			t.Fatal("Enter on Memory > Overview should open the memory view")
 		}
 	})
+}
+
+// isItem reports whether the menu cursor is on group/label.
+func isItem(m model, group, label string) bool {
+	it, ok := m.actions.SelectedItem().(listItem)
+	return ok && !it.header && it.action.group == group && it.action.label == label
 }
 
 func TestFooterCompactKeepsShortcutsWithinWidth(t *testing.T) {
@@ -253,8 +255,8 @@ func TestFooterCompactKeepsShortcutsWithinWidth(t *testing.T) {
 
 func TestViewsAreReadOnly(t *testing.T) {
 	for _, a := range buildActions() {
-		if (a.label == memoryLabel || a.label == cpuLabel) && (a.quit || a.openClean) {
-			t.Fatalf("%s must be a plain read-only action", a.label)
+		if a.view != viewNone && (a.quit || a.openClean) {
+			t.Fatalf("%s must be a plain view, not a control action", a.label)
 		}
 	}
 }

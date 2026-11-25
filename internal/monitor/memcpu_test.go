@@ -47,17 +47,20 @@ func memoryFakes() map[string]string {
 		"vm_stat":              synthVMStat,
 		"sysctl -n hw.memsize": synthMemsize,
 		"sysctl -n kern.memorystatus_vm_pressure_level": "2\n",
-		"memory_pressure":            "The system has 17179869184 bytes\nSystem-wide memory free percentage: 41%\n",
-		"sysctl vm.swapusage":        "vm.swapusage: total = 2048.00M  used = 1024.50M  free = 1023.50M  (encrypted)\n",
-		"sysctl -n kern.boottime":    "{ sec = 1700000000, usec = 5 } Tue Nov 14 22:13:20 2023\n",
-		"ps -axwwo rss=,pcpu=,comm=": synthPS,
+		"memory_pressure":                              "The system has 17179869184 bytes\nSystem-wide memory free percentage: 41%\n",
+		"sysctl vm.swapusage":                          "vm.swapusage: total = 2048.00M  used = 1024.50M  free = 1023.50M  (encrypted)\n",
+		"sysctl -n kern.boottime":                      "{ sec = 1700000000, usec = 5 } Tue Nov 14 22:13:20 2023\n",
+		"ps -axwwo pid=,state=,rss=,pcpu=,pmem=,comm=": synthPS,
 	}
 }
 
-const synthPS = `  1048576  10.0 /Applications/Alpha.app/Contents/MacOS/Alpha
-   524288   5.5 /Applications/Alpha.app/Contents/Frameworks/Alpha Helper.app/Contents/MacOS/Alpha Helper
-   786432  30.0 /usr/libexec/beta
-     1024   0.1 /Applications/Gamma.app/Contents/MacOS/Gamma
+const synthPS = `  100 Ss  1048576  10.0  6.2 /Applications/Alpha.app/Contents/MacOS/Alpha
+  101 S    524288   5.5  3.1 /Applications/Alpha.app/Contents/Frameworks/Alpha Helper.app/Contents/MacOS/Alpha Helper
+  102 R    786432  30.0  4.6 /usr/libexec/beta
+  103 U      1024   0.1  0.0 /Applications/Gamma.app/Contents/MacOS/Gamma
+  104 Z         0   0.0  0.0 /usr/libexec/defunct
+  105 T      2048   0.0  0.0 /usr/libexec/paused
+  106 I      4096   0.0  0.0 /usr/libexec/idle
    not-a-row
 `
 
@@ -141,10 +144,10 @@ func TestMemoryFailsOnlyWithoutVMStat(t *testing.T) {
 }
 
 func TestAggregateByApp(t *testing.T) {
-	apps := aggregateApps(parseProcRows(synthPS))
-	top := topApps(apps, 5, true)
-	if len(top) != 3 {
-		t.Fatalf("want 3 apps (malformed line skipped), got %d: %+v", len(top), top)
+	apps := aggregateApps(rowsOf(parseProcTable(synthPS)))
+	top := topApps(apps, 10, true)
+	if len(top) != 6 {
+		t.Fatalf("want 6 apps (malformed line skipped), got %d: %+v", len(top), top)
 	}
 	if top[0].Name != "Alpha" || top[0].Procs != 2 || top[0].MemMB != 1536 {
 		t.Fatalf("helper bundle must fold into its app: %+v", top[0])
@@ -215,17 +218,28 @@ func TestHeavyPagingThresholds(t *testing.T) {
 
 func TestClassifyCPUThresholds(t *testing.T) {
 	cases := []struct {
+		name  string
 		load  float64
 		cores int
+		idle  float64
 		want  string
 	}{
-		{0.99, 1, LoadNormal}, {1.0, 1, LoadHigh}, {2.0, 1, LoadHigh},
-		{2.01, 1, LoadSaturated}, {5, 10, LoadNormal}, {10, 10, LoadHigh},
-		{20, 10, LoadHigh}, {20.1, 10, LoadSaturated}, {50, 0, LoadNormal},
+		{"healthy", 0.99, 1, 80, LoadNormal},
+		{"boundary high, busy cpu", 1.0, 1, 30, LoadHigh},
+		{"upper bound high", 2.0, 1, 30, LoadHigh},
+		{"saturated, busy cpu", 2.01, 1, 10, LoadSaturated},
+		{"per-core 0.5", 5, 10, 60, LoadNormal},
+		{"idle exactly 50 is not free", 20.1, 10, 50, LoadSaturated},
+		{"measured case: load5/core 47, idle 66.5", 47 * 8, 8, 66.5, LoadWaiting},
+		{"high but idle", 15, 10, 51, LoadWaiting},
+		{"alta rango with idle", 12, 10, 90, LoadWaiting},
+		{"unknown idle keeps load-only rule", 47 * 8, 8, -1, LoadSaturated},
+		{"unknown idle, alta", 12, 10, -1, LoadHigh},
+		{"no cores", 50, 0, 10, LoadNormal},
 	}
 	for _, c := range cases {
-		if got := ClassifyCPU(c.load, c.cores); got != c.want {
-			t.Errorf("load %.2f/%d = %s, want %s", c.load, c.cores, got, c.want)
+		if got := ClassifyCPU(c.load, c.cores, c.idle); got != c.want {
+			t.Errorf("%s: load %.2f/%d idle %.1f = %s, want %s", c.name, c.load, c.cores, c.idle, got, c.want)
 		}
 	}
 }
@@ -244,31 +258,44 @@ func TestHighKernelTimeThresholds(t *testing.T) {
 	}
 }
 
-const synthTop = `Processes: 400 total
-CPU usage: 50.00% user, 30.00% sys, 20.00% idle
-Processes: 400 total
-CPU usage: 12.50% user, 45.25% sys, 42.25% idle
+const synthIostat = `              disk0       cpu    load average
+    KB/t  tps  MB/s  us sy id   1m   5m   15m
+   25.03 3107 75.93  27 28 45  60.70 49.87 72.02
+   22.64 2152 47.59  13 45 42  60.70 49.87 72.02
 `
 
-func TestParseTopCPUUsesSecondSample(t *testing.T) {
-	u, s, i, ok := parseTopCPU(synthTop)
-	if !ok || u != 12.5 || s != 45.25 || i != 42.25 {
-		t.Fatalf("got %v %v %v %v; the first (cumulative) sample must be ignored", u, s, i, ok)
+// Two disks add columns before "us": the split must still be found.
+const synthIostat2Disks = `              disk0               disk4       cpu    load average
+    KB/t  tps  MB/s     KB/t  tps  MB/s  us sy id   1m   5m   15m
+   25.03 3107 75.93     1.00    1  0.00  27 28 45  1.00 2.00 3.00
+   22.64 2152 47.59     1.00    1  0.00  10  5 85  1.00 2.00 3.00
+`
+
+func TestParseIostatCPUUsesIntervalLine(t *testing.T) {
+	u, s, i, ok := parseIostatCPU(synthIostat)
+	if !ok || u != 13 || s != 45 || i != 42 {
+		t.Fatalf("got %v %v %v %v; the since-boot line must be ignored", u, s, i, ok)
 	}
-	if _, _, _, ok := parseTopCPU("garbage"); ok {
-		t.Fatal("garbage must not parse")
+	u, s, i, ok = parseIostatCPU(synthIostat2Disks)
+	if !ok || u != 10 || s != 5 || i != 85 {
+		t.Fatalf("two disks: got %v %v %v %v", u, s, i, ok)
+	}
+	for _, bad := range []string{"", "garbage", "cpu\n us sy id\n", "disk0 cpu\n us sy id\n x y z\n"} {
+		if _, _, _, ok := parseIostatCPU(bad); ok {
+			t.Fatalf("%q must not parse", bad)
+		}
 	}
 }
 
 func cpuFakes() map[string]string {
 	return map[string]string{
-		"top -l 2 -n 0 -s 1":                 synthTop,
-		"sysctl -n vm.loadavg":               "{ 4.00 3.00 2.00 }\n",
-		"sysctl -n hw.ncpu":                  "10\n",
-		"sysctl -n hw.perflevel0.logicalcpu": "6\n",
-		"sysctl -n hw.perflevel1.logicalcpu": "4\n",
-		"pmset -g therm":                     "No thermal warning level has been recorded\n",
-		"ps -axwwo rss=,pcpu=,comm=":         synthPS,
+		"iostat -c 2 -w 1":                             synthIostat,
+		"sysctl -n vm.loadavg":                         "{ 4.00 3.00 2.00 }\n",
+		"sysctl -n hw.ncpu":                            "10\n",
+		"sysctl -n hw.perflevel0.logicalcpu":           "6\n",
+		"sysctl -n hw.perflevel1.logicalcpu":           "4\n",
+		"pmset -g therm":                               "No thermal warning level has been recorded\n",
+		"ps -axwwo pid=,state=,rss=,pcpu=,pmem=,comm=": synthPS,
 	}
 }
 
@@ -278,7 +305,7 @@ func TestCPUSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d["user_pct"] != 12.5 || d["sys_pct"] != 45.25 || d["kernel_high"] != true {
+	if d["user_pct"] != 13.0 || d["sys_pct"] != 45.0 || d["idle_pct"] != 42.0 || d["kernel_high"] != true {
 		t.Fatalf("cpu split: %v", d)
 	}
 	if d["load_per_core"].(float64) != 0.4 || d["load5_per_core"].(float64) != 0.3 ||
@@ -303,6 +330,6 @@ func TestCPUDegradesToIntelAndFailures(t *testing.T) {
 		t.Fatalf("degradation: %v", d)
 	}
 	if _, ok := d["user_pct"]; ok {
-		t.Fatal("no top output, no split")
+		t.Fatal("no iostat output, no split")
 	}
 }

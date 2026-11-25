@@ -17,6 +17,10 @@ const (
 	LoadNormal    = "Normal"
 	LoadHigh      = "Alta"
 	LoadSaturated = "Saturada"
+	// LoadWaiting is a high load while the CPU is mostly idle: the load average
+	// also counts tasks blocked on memory or disk, so it does not mean the CPU
+	// is the bottleneck.
+	LoadWaiting = "Carga alta con CPU libre: procesos esperando memoria o disco"
 )
 
 // Thresholds. Named so the rules read like the spec.
@@ -26,12 +30,15 @@ const (
 	kernelTimePct       = 40.0 // sys above 40% and above user
 	loadHighPerCore     = 1.0  // load5/cores: <1 normal, 1-2 high, >2 saturated
 	loadSaturatedCores  = 2.0
+	loadIdleFreePct     = 50.0 // idle above this means the CPU is not the limit
 )
 
 // Cautious wording: the toolkit observes symptoms, it cannot know the cause.
 const (
 	NoteHeavyPaging = "Paginación intensa: el swap está casi lleno y se ha escrito mucho " +
 		"a disco desde el arranque. Puede indicar falta de RAM para la carga actual."
+	// PagingOK is the calm verdict: no symptom is not proof of health.
+	PagingOK       = "Sin señales de paginación intensa."
 	NoteKernelTime = "Tiempo de kernel elevado: el sistema gasta más CPU que las apps. " +
 		"Puede deberse a paginación o a agentes de seguridad."
 )
@@ -62,27 +69,32 @@ func HeavyPaging(swapUsedMB, swapTotalMB, swapoutsGB, ramGB float64) bool {
 	return swapUsedMB/swapTotalMB > pagingSwapUsedRatio && swapoutsGB > pagingSwapoutsRAMx*ramGB
 }
 
-// ClassifyLoadRatio classifies a load-per-core ratio: <1 Normal, 1-2 Alta
-// (both bounds inclusive), >2 Saturada.
-func ClassifyLoadRatio(ratio float64) string {
+// ClassifyLoad classifies a load-per-core ratio together with the idle share:
+// below 1 is Normal. From 1 up, a CPU that is more than half idle means the
+// load is tasks waiting on memory or disk, not CPU work (LoadWaiting); only
+// with little idle time is it Alta (1-2, both bounds inclusive) or Saturada
+// (>2). A negative idlePct means "unknown" and keeps the load-only rule.
+func ClassifyLoad(ratio, idlePct float64) string {
 	switch {
+	case ratio < loadHighPerCore:
+		return LoadNormal
+	case idlePct > loadIdleFreePct:
+		return LoadWaiting
 	case ratio > loadSaturatedCores:
 		return LoadSaturated
-	case ratio >= loadHighPerCore:
-		return LoadHigh
 	default:
-		return LoadNormal
+		return LoadHigh
 	}
 }
 
 // ClassifyCPU classifies the 5-minute load average against the core count.
 // The 5-minute window is used instead of the 1-minute one so a short burst
 // does not read as a saturated machine. Unknown core count yields Normal.
-func ClassifyCPU(load5 float64, cores int) string {
+func ClassifyCPU(load5 float64, cores int, idlePct float64) string {
 	if cores <= 0 {
 		return LoadNormal
 	}
-	return ClassifyLoadRatio(load5 / float64(cores))
+	return ClassifyLoad(load5/float64(cores), idlePct)
 }
 
 // HighKernelTime reports elevated kernel time: sys above 40% and above user.

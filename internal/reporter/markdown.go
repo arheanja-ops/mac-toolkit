@@ -10,13 +10,16 @@ import (
 
 type MarkdownReporter struct {
 	OutputDir string
+	// Quiet suppresses the stderr confirmation; the TUI owns the screen and a
+	// stray write would corrupt it.
+	Quiet bool
 }
 
 func (m *MarkdownReporter) Name() string { return "markdown" }
 
 func (m *MarkdownReporter) Report(results []core.AnalysisResult) error {
 	if m.OutputDir == "" {
-		m.OutputDir = fmt.Sprintf("reports/analysis_%s", time.Now().Format("20060102_150405"))
+		m.OutputDir = core.NewReportDir(core.AnalysisPrefix)
 	}
 	if err := os.MkdirAll(m.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("creating report dir: %w", err)
@@ -75,6 +78,8 @@ func (m *MarkdownReporter) Report(results []core.AnalysisResult) error {
 		}
 	}
 
-	core.Success("Markdown report saved: %s", path)
+	if !m.Quiet {
+		core.Success("Markdown report saved: %s", path)
+	}
 	return nil
 }

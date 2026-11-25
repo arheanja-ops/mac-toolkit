@@ -146,10 +146,10 @@ func TestDoctorKeyDIgnoredInSelectMode(t *testing.T) {
 	})
 }
 
-func TestDoctorActionRegisteredInDiskGroup(t *testing.T) {
+func TestDoctorActionRegisteredInHealthGroup(t *testing.T) {
 	for _, a := range buildActions() {
 		if a.label == doctorLabel {
-			if a.group != "Disk" || a.run == nil || a.quit || a.openClean {
+			if a.group != "Health" || a.run == nil || a.quit || a.openClean {
 				t.Fatalf("bad doctor action: %+v", a)
 			}
 			return

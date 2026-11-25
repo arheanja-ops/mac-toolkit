@@ -11,8 +11,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// headerInterval is the live-header refresh period (F6 default 2s).
-const headerInterval = 2 * time.Second
+// headerInterval is the pause between live-header refreshes.
+// The system read inside a tick takes ~1 s (the CPU sample) and the next tick
+// is only programmed once it returns, so the effective period is
+// headerInterval + ~1 s. A slower interval keeps the header from adding load
+// to a machine that is already busy.
+const headerInterval = 3 * time.Second
 
 // headerStats holds the lightweight, per-tick metrics from the system monitor.
 // ok=false means the last system read failed; callers keep the last disk value
@@ -33,7 +37,7 @@ type headerTickMsg struct {
 // systemSnapshotFn is the source of system metrics. It is a package var so
 // tests can inject a fake without touching real hardware.
 var systemSnapshotFn = func() (map[string]any, error) {
-	return (&monitor.SystemMonitor{}).Snapshot()
+	return (&monitor.SystemMonitor{Light: true}).Snapshot()
 }
 
 // readHeaderStats converts a system snapshot into headerStats, degrading field

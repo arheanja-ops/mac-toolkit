@@ -58,8 +58,8 @@ type model struct {
 	disk    core.DiskSnapshot
 	hdr     headerStats
 	running bool
-	// openView is the dedicated panel (Doctor, Memory, CPU) shown in the detail
-	// pane, so 'r' refreshes it (and only it). viewNone for ordinary actions.
+	// openView is the dedicated view shown in the detail pane, so 'r' refreshes
+	// it (and only it). viewNone for ordinary actions.
 	openView viewID
 	width    int
 	height   int
@@ -79,13 +79,16 @@ type model struct {
 func newModel(version string) model {
 	items := buildListItems(buildActions())
 
-	// Custom delegate renders the k9s-style hierarchy (group headers + caret).
-	l := list.New(items, actionDelegate{}, 0, 0)
+	// The list only holds state (items, cursor, filter); renderMenu draws it.
+	l := list.New(items, stateDelegate{}, 0, 0)
 	l.Title = "ACTIONS"
 	l.SetShowTitle(false) // the pane border carries the "ACTIONS" title instead
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true)
+
+	// Open on the first selectable item, never on a category header.
+	l = edgeMenu(l, -1)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -214,7 +217,10 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "esc":
-		return m, tea.Quit // no active filter: Esc exits the TUI
+		if m.actions.FilterState() == list.FilterApplied {
+			return m.forwardToFocused(msg) // Esc clears an applied filter first
+		}
+		return m, tea.Quit // no filter at all: Esc exits the TUI
 	case "tab":
 		m.focus = togglePanel(m.focus)
 		return m, nil
@@ -229,11 +235,11 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		return m.enterSelect(), nil
 	case "d":
-		return m.runView(viewDoctor)
+		return m.openShortcut(viewDoctor)
 	case "m":
-		return m.runView(viewMemory)
+		return m.openShortcut(viewMemory)
 	case "u":
-		return m.runView(viewCPU)
+		return m.openShortcut(viewCPU)
 	case "r":
 		if m.openView != viewNone {
 			return m.runView(m.openView)
@@ -243,10 +249,51 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m.forwardToFocused(msg)
 }
 
+// openShortcut opens a view from its letter key and moves the menu cursor onto
+// that entry, so the left panel always shows what the right panel displays.
+func (m model) openShortcut(v viewID) (tea.Model, tea.Cmd) {
+	for i, it := range m.actions.VisibleItems() {
+		if li, ok := it.(listItem); ok && !li.header && li.action.view == v {
+			m.actions.Select(i)
+			break
+		}
+	}
+	return m.runView(v)
+}
+
+// menuNav handles the cursor keys of the left menu so the cursor skips
+// category headers. It reports false for keys the list should handle itself
+// (e.g. "/" to start filtering).
+func (m model) menuNav(key string) (model, bool) {
+	_, _, bodyH := m.paneGeometry()
+	switch key {
+	case "up", "k":
+		m.actions = stepMenu(m.actions, -1)
+	case "down", "j":
+		m.actions = stepMenu(m.actions, 1)
+	case "home", "g":
+		m.actions = edgeMenu(m.actions, -1)
+	case "end", "G":
+		m.actions = edgeMenu(m.actions, 1)
+	case "pgup":
+		m.actions = pageMenu(m.actions, -1, max(bodyH-2, 1))
+	case "pgdown":
+		m.actions = pageMenu(m.actions, 1, max(bodyH-2, 1))
+	default:
+		return m, false
+	}
+	return m, true
+}
+
 // forwardToFocused sends navigation keys to whichever pane holds focus.
 func (m model) forwardToFocused(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.focus == actionsPanel {
+		if m.actions.FilterState() != list.Filtering {
+			if nm, handled := m.menuNav(msg.String()); handled {
+				return nm, nil
+			}
+		}
 		m.actions, cmd = m.actions.Update(msg)
 	} else {
 		m.detail, cmd = m.detail.Update(msg)
@@ -272,8 +319,8 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 	if it.action.run == nil {
 		return m, nil
 	}
-	if v := viewForLabel(it.action.label); v != viewNone {
-		return m.runView(v)
+	if it.action.view != viewNone {
+		return m.runView(it.action.view)
 	}
 	return m.runAction(it.action.run)
 }
@@ -286,12 +333,12 @@ func (m model) runAction(run func(width int) (string, error)) (tea.Model, tea.Cm
 	return m.launch(run)
 }
 
-// runView starts one of the dedicated read-only views (Doctor, Memory, CPU).
+// runView starts one of the dedicated views (see viewRunners).
 // Every call re-reads the system (no cache): the shortcut and 'r' are both a
 // fresh run. A run already in flight is not duplicated — the key is ignored
 // until the spinner stops. Refresh is manual only; nothing polls.
 func (m model) runView(v viewID) (tea.Model, tea.Cmd) {
-	if m.running {
+	if m.running || v.runner() == nil {
 		return m, nil
 	}
 	m.openView = v
@@ -437,7 +484,8 @@ func (m model) View() string {
 	// Inner content dimensions mirror what onResize handed to each pane, so the
 	// border wraps the content exactly — nothing is clipped or left ragged.
 	leftW, rightW, bodyH := m.paneGeometry()
-	left := paneBorder("ACTIONS", m.focus == actionsPanel, leftW, bodyH).Render(m.actions.View())
+	menu := renderMenu(m.actions.VisibleItems(), m.actions.Index(), leftW, bodyH, menuFilterLine(m.actions))
+	left := paneBorder("MENU", m.focus == actionsPanel, leftW, bodyH).Render(menu)
 	right := paneBorder(m.detailTitle(), m.focus == detailPanel, rightW, bodyH).Render(detail)
 
 	// gap keeps the two bordered panes visually separated; its width matches the
@@ -445,12 +493,11 @@ func (m model) View() string {
 	gap := strings.Repeat(" ", panelGap)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
 
-	// Hard-clip the body to the exact frame size. The Bubbles list can report a
-	// render height a few rows taller than the size we set it (blank group
-	// spacers the delegate emits are not counted in its Height()), which would
-	// otherwise push the whole frame past the terminal height and cause a
-	// phantom scroll. MaxHeight/MaxWidth guarantee the body never exceeds its
-	// budget: body rows = bodyH inner + 2 border rows.
+	// Hard-clip the body to the exact frame size as a last line of defense:
+	// renderMenu already fits bodyH lines, but a wrapped detail line must never
+	// push the frame past the terminal height (phantom scroll).
+	// MaxHeight/MaxWidth guarantee the body never exceeds its budget: body rows
+	// = bodyH inner + 2 border rows.
 	body = lipgloss.NewStyle().
 		MaxWidth(m.width).
 		MaxHeight(bodyH + paneBorderWidth).
@@ -499,6 +546,9 @@ func (m model) detailTitle() string {
 	case cleaningMode:
 		return "CLEANING"
 	default:
+		if t, ok := viewTitles[m.openView]; ok {
+			return t
+		}
 		return "DETAILS"
 	}
 }
@@ -558,27 +608,33 @@ func renderFooter(mode cleanMode, width int) string {
 		hints = []struct{ key, desc string }{
 			{"↑↓", "nav"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
 			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
-			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"/", "filtrar"}, {"q", "salir"},
+			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"r", "refrescar"},
+			{"/", "filtrar"}, {"q", "salir"},
 		}
-		// On an 80-column (or narrower) terminal the full set overflows, so drop
+		// When the full set does not fit the width it overflows, so drop
 		// the self-evident navigation hints and keep the action shortcuts plus
 		// the all-important "q salir" — never truncate that away.
-		if width > 0 && width < 90 {
-			// "/ filtrar" and the long "preview" label make room for m/u within
-			// 80 columns; both are documented in the welcome text and README.
+		if width > 0 && lipgloss.Width(strings.Join(hintParts(hints), " · ")) > width {
+			// "/ filtrar" and long labels make room for m/u/r within 80
+			// columns; both are documented in the welcome text and README.
 			hints = []struct{ key, desc string }{
-				{"⏎", "ejecutar"}, {"a", "analyze"}, {"c", "clean"},
-				{"p", "prev"}, {"d", "doctor"}, {"m", "mem"}, {"u", "cpu"}, {"q", "salir"},
+				{"⏎", "abrir"}, {"a", "analyze"}, {"c", "clean"}, {"p", "prev"},
+				{"d", "doc"}, {"m", "mem"}, {"u", "cpu"}, {"r", "↻"}, {"q", "salir"},
 			}
 		}
 	}
-	parts := make([]string, 0, len(hints))
-	for _, h := range hints {
-		parts = append(parts, footerKeyStyle.Render(h.key)+" "+footerDescStyle.Render(h.desc))
-	}
-	joined := footerStyle.Render(strings.Join(parts, sepStyle.Render(" · ")))
+	joined := footerStyle.Render(strings.Join(hintParts(hints), sepStyle.Render(" · ")))
 	if width > 0 {
 		joined = truncateToWidth(joined, width)
 	}
 	return joined
+}
+
+// hintParts styles each key hint of the footer.
+func hintParts(hints []struct{ key, desc string }) []string {
+	parts := make([]string, 0, len(hints))
+	for _, h := range hints {
+		parts = append(parts, footerKeyStyle.Render(h.key)+" "+footerDescStyle.Render(h.desc))
+	}
+	return parts
 }

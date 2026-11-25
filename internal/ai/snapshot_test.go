@@ -198,3 +198,21 @@ func TestBuildSnapshot_LoadFieldsToleratesBadTypes(t *testing.T) {
 		t.Fatalf("bad types must be ignored: %+v", snap)
 	}
 }
+
+// The idle share is a plain number; it feeds the "high load, free CPU" insight
+// without adding any identifying field to the snapshot.
+func TestBuildSnapshot_IdleShareIsNumberOnly(t *testing.T) {
+	sys := map[string]any{"load5_per_core": 4.7, "user_pct": 20.0, "sys_pct": 13.5, "idle_pct": 66.5,
+		"top_cpu": []string{"alpha"}, "pid": 1234}
+	snap := BuildSnapshot(nil, sys, core.DiskSnapshot{})
+	if snap.CPUIdlePct != 66.5 {
+		t.Fatalf("idle not applied: %+v", snap)
+	}
+	blob := mustJSON(t, snap)
+	if !strings.Contains(blob, `"cpu_idle_pct":66.5`) || strings.Contains(blob, "alpha") || strings.Contains(blob, "1234") {
+		t.Fatalf("unexpected snapshot: %s", blob)
+	}
+	if got := idleOf(AISnapshot{}); got != -1 {
+		t.Fatalf("no split read must mean unknown (-1), got %v", got)
+	}
+}

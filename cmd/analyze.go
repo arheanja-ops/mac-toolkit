@@ -59,14 +59,13 @@ func runAnalysis(domain string) []core.AnalysisResult {
 	return core.RunAnalyzers(tasks, core.AnalyzerTimeoutSeconds)
 }
 
-// saveReports saves both markdown and JSON reports
+// saveReports saves both markdown and JSON reports into the canonical folder
+// (core.ReportsDir) and prints where they went.
 func saveReports(results []core.AnalysisResult) {
-	md := &reporter.MarkdownReporter{}
-	if err := md.Report(results); err != nil {
-		core.Error("Markdown report: %v", err)
+	dir, err := reporter.SaveAnalysis(results, false)
+	if err != nil {
+		core.Error("Report: %v", err)
+		return
 	}
-	jr := &reporter.JSONReporter{OutputDir: md.OutputDir}
-	if err := jr.Report(results); err != nil {
-		core.Error("JSON report: %v", err)
-	}
+	core.Info("Reportes en: %s", dir)
 }

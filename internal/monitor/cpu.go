@@ -2,8 +2,6 @@ package monitor
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -12,37 +10,20 @@ type CPUMonitor struct{}
 
 func (c *CPUMonitor) Name() string { return "cpu" }
 
-var reCPUUsage = regexp.MustCompile(`CPU usage:\s+([\d.]+)% user,\s+([\d.]+)% sys,\s+([\d.]+)% idle`)
-
-// parseTopCPU returns the user/sys/idle split of the LAST "CPU usage" line.
-// `top -l 2` prints two samples: the first is the average since boot (or since
-// the previous call) and says nothing about the present; only the second covers
-// the interval between the samples, so that is the one we report.
-func parseTopCPU(raw string) (user, sys, idle float64, ok bool) {
-	all := reCPUUsage.FindAllStringSubmatch(raw, -1)
-	if len(all) == 0 {
-		return 0, 0, 0, false
-	}
-	m := all[len(all)-1]
-	user, _ = strconv.ParseFloat(m[1], 64)
-	sys, _ = strconv.ParseFloat(m[2], 64)
-	idle, _ = strconv.ParseFloat(m[3], 64)
-	return user, sys, idle, true
-}
-
-// Snapshot takes ~2 s because of the second `top` sample. Each source degrades
-// independently; the snapshot never errors.
+// Snapshot takes ~1 s (the iostat interval sample, which costs no CPU). Each
+// source degrades independently; the snapshot never errors.
 func (c *CPUMonitor) Snapshot() (map[string]any, error) {
 	data := map[string]any{}
-	if out, err := runCmd("top", "-l", "2", "-n", "0", "-s", "1"); err == nil {
-		if u, s, i, ok := parseTopCPU(string(out)); ok {
-			data["user_pct"], data["sys_pct"], data["idle_pct"] = u, s, i
-			data["kernel_high"] = HighKernelTime(s, u)
-		}
+	if u, s, i, ok := readCPUSplit(); ok {
+		data["user_pct"], data["sys_pct"], data["idle_pct"] = u, s, i
+		data["kernel_high"] = HighKernelTime(s, u)
 	}
 	addLoad(data)
 	if out, err := runCmd("pmset", "-g", "therm"); err == nil {
 		data["thermal"] = parseThermal(string(out))
+		if lim, ok := parseSpeedLimit(string(out)); ok {
+			data["cpu_speed_limit"] = lim
+		}
 	} else {
 		data["thermal"] = ThermalUnknown
 	}
@@ -79,7 +60,14 @@ func addLoad(data map[string]any) {
 		// use the 5-minute one (load5_per_core) to ignore short bursts.
 		data["load_per_core"] = l1 / float64(cores)
 		data["load5_per_core"] = l5 / float64(cores)
-		data["load_verdict"] = ClassifyCPU(l5, cores)
+		data["load15_per_core"] = l15 / float64(cores)
+		// Idle is passed so a high load with a free CPU is not called
+		// "Saturada"; -1 means the split could not be read.
+		idle := -1.0
+		if v, ok := data["idle_pct"].(float64); ok {
+			idle = v
+		}
+		data["load_verdict"] = ClassifyCPU(l5, cores, idle)
 	}
 }
 

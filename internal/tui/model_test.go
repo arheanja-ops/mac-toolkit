@@ -198,7 +198,7 @@ func TestViewRendersWithoutPanic(t *testing.T) {
 	if view == "" || view == "Loading…" {
 		t.Fatalf("View() should render a full frame once sized, got: %q", view)
 	}
-	for _, want := range []string{"ACTIONS", "DETAILS", "ejecutar", "salir"} {
+	for _, want := range []string{"MENU", "DETAILS", "abrir", "salir"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("rendered frame missing %q:\n%s", want, view)
 		}

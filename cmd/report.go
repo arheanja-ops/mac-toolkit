@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
 
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 
@@ -16,40 +14,31 @@ var reportLast bool
 var reportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "View saved reports",
+	Long: "View saved analysis reports. They live in a fixed folder (printed below), " +
+		"so the command works from any directory. Create one with `analyze --save`.",
 	Run: func(cmd *cobra.Command, args []string) {
-		reportsDir := "reports"
-		entries, err := os.ReadDir(reportsDir)
+		list, err := core.ListReports()
 		if err != nil {
-			core.Error("No reports found: %v", err)
+			core.Error("Reports: %v", err)
 			return
 		}
-
-		if len(entries) == 0 {
-			core.Info("No reports saved yet")
+		core.Info("Carpeta de reportes: %s", core.ReportsDir())
+		if len(list) == 0 {
+			core.Info("Aún no hay reportes. Crea uno con: mac-toolkit analyze --save")
 			return
 		}
-
-		// Sort by name (timestamp-based names sort chronologically)
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].Name() > entries[j].Name()
-		})
-
 		if reportLast {
-			// Show the latest report
-			latest := entries[0]
-			mdPath := filepath.Join(reportsDir, latest.Name(), "report.md")
-			data, err := os.ReadFile(mdPath)
+			data, err := os.ReadFile(list[0].Path)
 			if err != nil {
 				core.Error("Cannot read report: %v", err)
 				return
 			}
 			fmt.Println(string(data))
-		} else {
-			// List all reports
-			core.Bold("Saved Reports")
-			for _, e := range entries {
-				fmt.Printf("  %s\n", e.Name())
-			}
+			return
+		}
+		core.Bold("Saved Reports")
+		for _, e := range list {
+			fmt.Printf("  %s  %s\n", e.Name, core.FormatBytes(e.Size))
 		}
 	},
 }

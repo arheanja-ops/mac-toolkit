@@ -24,7 +24,7 @@ repositorio (archivos citados entre paréntesis).
 `doctor`, `analyze`, `status`, `battery`, `system`, `memory`, `cpu`, `processes`, `network` y
 `report` únicamente **leen** métricas del sistema (`df`, `ioreg`, `pmset`,
 `system_profiler`, `WalkDir`). No crean, modifican ni eliminan archivos
-(`analyze --save` solo escribe su propio reporte en `reports/`).
+(`analyze --save` y `Save report` de la TUI solo escriben su propio reporte en la carpeta de reportes del toolkit, `os.UserConfigDir()/mac-toolkit/reports`).
 (`cmd/doctor.go` — "strictly read-only — it never deletes").
 
 - **Estados térmicos.** Clasificar `pmset -g therm` como `Normal`, `Throttled`,
@@ -137,7 +137,7 @@ forma permanente, entre otros: `/System`, `/usr`, `/bin`, `/sbin`,
 Cada sesión de `clean --execute` (CLI), cada borrado desde la TUI, cada
 `docker cleanup --execute` (`docker-cli`) y cada ejecución real de las tools MCP
 destructivas (`mcp`) escribe un audit log JSON
-(`reports/cleanup_<fecha_hora>/audit.json`, con modo de aprobación y resultado por
+(`<carpeta de reportes>/cleanup_<fecha_hora>/audit.json`, donde la carpeta es `os.UserConfigDir()/mac-toolkit/reports`, p. ej. `~/Library/Application Support/mac-toolkit/reports` en macOS, con modo de aprobación y resultado por
 item) mediante `reporter.AuditReporter`. (`cmd/clean.go`, `cmd/docker_cleanup.go`,
 `cmd/mcp_destructive.go`, `internal/tui/clean.go`, `internal/reporter/audit.go`)
 

@@ -26,6 +26,7 @@ type vmStats struct {
 	Free, Active, Inactive, Speculative, Wired   int64
 	Compressed, Anonymous, Purgeable, FileBacked int64
 	Swapins, Swapouts                            int64
+	Pageins, Pageouts, Stored                    int64
 }
 
 // parseVMStat reads `vm_stat` output. Missing counters stay 0, so a trimmed or
@@ -48,6 +49,9 @@ func parseVMStat(raw string) vmStats {
 	v.FileBacked = vmStatVal(raw, "File-backed pages")
 	v.Swapins = vmStatVal(raw, "Swapins")
 	v.Swapouts = vmStatVal(raw, "Swapouts")
+	v.Pageins = vmStatVal(raw, "Pageins")
+	v.Pageouts = vmStatVal(raw, "Pageouts")
+	v.Stored = vmStatVal(raw, "Pages stored in compressor")
 	return v
 }
 

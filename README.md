@@ -62,12 +62,23 @@ mac-toolkit tui      # equivalente explícito
 Al abrir entra a una pantalla de bienvenida con un resumen del sistema. El layout:
 
 - **Header en vivo** (se refresca solo): uso de disco, memoria, CPU y estado térmico.
-- **Panel izquierdo** — acciones agrupadas en Disk / Clean / Monitors / Reports.
+- **Panel izquierdo** — menú por categorías; el cursor salta las cabeceras y la
+  categoría activa siempre queda visible, incluso en 80x24.
 - **Panel derecho** — resultado de la acción seleccionada, con scroll.
 
-Acciones del panel izquierdo (`internal/tui/actions.go`): **Disk** (Analyze,
-Status, Doctor) · **Clean** (Preview, Select & clean) · **Monitors** (Battery,
-System, Memory, CPU, Processes, Network) · **Reports** (Last report) · **Session** (Quit / Salir).
+Menú (`internal/tui/actions.go`):
+
+| Categoría | Entradas |
+|-----------|----------|
+| HEALTH | Doctor |
+| DISK | Analyze · Status |
+| CLEAN | Preview · Select & clean |
+| MEMORY | Overview · Swap & paging · Top apps |
+| CPU | Overview · Load · Top apps · Thermal |
+| PROCESSES | Top by CPU · Top by memory · By app · Summary |
+| SYSTEM | Battery · System info · Network |
+| REPORTS | Last report · Saved reports · Save report |
+| SESSION | Quit / Salir |
 
 **Teclas en modo normal** (`internal/tui/model.go`):
 
@@ -82,8 +93,8 @@ System, Memory, CPU, Processes, Network) · **Reports** (Last report) · **Sessi
 | `c` | Abrir el modo selección de limpieza |
 | `d` | Doctor (diagnóstico priorizado, solo lectura) |
 | `m` | Memory (RAM, presión, swap, top apps; solo lectura) |
-| `u` | CPU (user/sys/idle, load por núcleo, top apps; tarda ~2 s) |
-| `r` | Refrescar la vista abierta (Doctor, Memory o CPU); sin vista abierta no hace nada |
+| `u` | CPU (user/sys/idle, load por núcleo, top apps) |
+| `r` | Refrescar la vista abierta (cualquiera del menú); sin vista abierta no hace nada |
 | `q` · `Ctrl+C` · `Esc` | Salir (con filtro activo, `Esc` solo cierra el filtro) |
 
 **Teclas en el modo selección de limpieza:** `↑↓` (o `k`/`j`) mover · `espacio`
@@ -97,10 +108,20 @@ El panel **Doctor** muestra tres grupos (PERFORMANCE, QUICK WINS, REQUIERE
 REVISIÓN), el contexto de disco y el motor usado (Groq o heurístico). Cada `d`/`r`
 re-analiza sin caché. Es solo lectura y se adapta hasta 80x24.
 
-Las vistas **Memory** (`m`) y **CPU** (`u`) son de solo lectura, se refrescan solo a
-mano (`r`) y corren con spinner. Agrupan procesos por aplicación y no muestran PIDs
-ni rutas. El Doctor suma tres insights (CPU saturada, tiempo de kernel elevado,
-paginación intensa) a partir de números agregados.
+Las vistas de **Memory** (`m`), **CPU** (`u`) y **Processes** son de solo lectura, se
+refrescan solo a mano (`r`) y corren con spinner. Memory y CPU agrupan por aplicación.
+Processes muestra tablas (PID, %CPU, %MEM, RSS y nombre; nunca rutas) que se adaptan al
+ancho, un resumen por estado y la presión de memoria. El Doctor suma insights (CPU
+saturada, tiempo de kernel elevado, paginación intensa, carga alta con CPU libre) a
+partir de números agregados.
+
+**Reportes.** Viven en una carpeta fija, independiente del directorio de trabajo:
+`~/Library/Application Support/mac-toolkit/reports` (`os.UserConfigDir()/mac-toolkit/reports`).
+`analyze --save` y **Save report** (REPORTS) escriben ahí `analysis_<fecha_hora>/report.md`
+y `report.json` e imprimen la ruta; `mac-toolkit report` y **Last report** / **Saved
+reports** los encuentran desde cualquier carpeta. El audit de `clean` también se guarda ahí
+(`cleanup_<fecha_hora>/audit.json`). Sin reportes, la TUI explica cómo crear el primero.
+**Save report** es la única entrada de la TUI que escribe, y solo dentro de esa carpeta.
 
 #### ¿Qué es "memoria usada"?
 
@@ -175,7 +196,7 @@ mac-toolkit battery      # Salud, ciclos, temperatura
 mac-toolkit system       # CPU, memoria, swap, estado térmico (Normal/Throttled/Warning/Unknown)
 mac-toolkit processes    # Top 10 por CPU y memoria
 mac-toolkit memory       # RAM usada (def. Monitor de Actividad), presión, swap, top apps
-mac-toolkit cpu          # user/sys/idle, load por núcleo, núcleos P/E, top apps (~2 s)
+mac-toolkit cpu          # user/sys/idle (intervalo de 1 s), load por núcleo, núcleos P/E, top apps
 mac-toolkit network      # WiFi, estadísticas, conectividad
 
 # Info
@@ -432,6 +453,6 @@ go test ./... -v -count=1
 
 ---
 
-*Mac Toolkit v1.8 — Go CLI + TUI (k9s-style) + `doctor` (IA/Groq) + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
+*Mac Toolkit v1.9 — Go CLI + TUI (k9s-style) + `doctor` (IA/Groq) + MCP para macOS • [arheanja-ops](https://github.com/arheanja-ops)*
 
 Ver [TOOLKIT_GUIDE.md](TOOLKIT_GUIDE.md) para documentación completa: configuración MCP en Kiro Desktop/CLI, herramientas disponibles, seguridad, skills, y guía de extensibilidad.
