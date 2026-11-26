@@ -51,10 +51,18 @@ func NewReportDir(prefix string) string {
 
 // ReportEntry describes one saved analysis report.
 type ReportEntry struct {
-	Name    string // folder name, e.g. analysis_20260102_150405
-	Path    string // absolute path of report.md
-	Size    int64  // bytes of report.md
-	ModTime time.Time
+	Name     string // folder name, e.g. analysis_20260102_150405
+	Dir      string // absolute path of the folder
+	Path     string // absolute path of report.md
+	Size     int64  // bytes of every report file in the folder (share variant included)
+	ModTime  time.Time
+	Formats  []string // formats of the full report found in the folder: md, json, html
+	HasShare bool     // the folder holds a share variant
+}
+
+// reportFormats maps a report file name to its short format label.
+var reportFormats = []struct{ file, label string }{
+	{"report.md", "md"}, {"report.json", "json"}, {"report.html", "html"},
 }
 
 // ListReports returns the saved analysis reports, newest first. A missing
@@ -74,16 +82,37 @@ func ListReports() ([]ReportEntry, error) {
 		if !e.IsDir() || !strings.HasPrefix(e.Name(), AnalysisPrefix) {
 			continue
 		}
-		md := filepath.Join(dir, e.Name(), "report.md")
-		info, err := os.Stat(md)
-		if err != nil {
-			continue
+		if entry, ok := reportEntry(filepath.Join(dir, e.Name())); ok {
+			out = append(out, entry)
 		}
-		out = append(out, ReportEntry{Name: e.Name(), Path: md, Size: info.Size(), ModTime: info.ModTime()})
 	}
 	// Names embed the timestamp, so a reverse name sort is newest-first.
 	sort.Slice(out, func(i, j int) bool { return out[i].Name > out[j].Name })
 	return out, nil
+}
+
+// reportEntry inspects one run folder; ok is false without a report.md.
+func reportEntry(dir string) (ReportEntry, bool) {
+	md, err := os.Stat(filepath.Join(dir, "report.md"))
+	if err != nil {
+		return ReportEntry{}, false
+	}
+	e := ReportEntry{Name: filepath.Base(dir), Dir: dir, Path: filepath.Join(dir, "report.md"), ModTime: md.ModTime()}
+	for _, f := range reportFormats {
+		if info, err := os.Stat(filepath.Join(dir, f.file)); err == nil {
+			e.Formats = append(e.Formats, f.label)
+			e.Size += info.Size()
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "share", "report.md")); err == nil {
+		e.HasShare = true
+		for _, f := range reportFormats {
+			if info, err := os.Stat(filepath.Join(dir, "share", f.file)); err == nil {
+				e.Size += info.Size()
+			}
+		}
+	}
+	return e, true
 }
 
 // LatestReport returns the newest saved analysis report; ok is false when none

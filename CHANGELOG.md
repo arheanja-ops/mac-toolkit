@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-25
+
+### Added
+- **Report v2**: un único modelo de reporte (`internal/reporter`) del que salen
+  `report.md`, `report.json` (con `schema_version`) y `report.html`, así que las cifras
+  coinciden en los tres. Incluye equipo, resumen ejecutivo con semáforo y los tres
+  hallazgos principales, sistema (memoria, swap, compresor, CPU, carga y térmico), disco,
+  detalle por dominio, top de apps y recomendaciones.
+- **HTML autocontenido**: CSS en línea, sin scripts ni recursos remotos, todo escapado e
+  imprimible.
+- **Variante share** (`share/` en cada reporte): sin rutas, nombres de archivo, etiquetas,
+  hashes ni nombres de apps (pasan a "App N"), para compartir.
+- `analyze --share` y `--open` (ambos implican `--save`); `analyze --save` imprime las
+  rutas de md, json y html.
+- `report` imprime el último reporte formateado; nuevos `--share`, `--list` y `--open`.
+- TUI: **Last report** estructurado (tablas que se adaptan de 40 a 80 columnas o más, y
+  caben en 80x24), **Saved reports** con formatos y variantes, **Save report** guarda
+  md, json, html y share, y la entrada **Open report** con la tecla `o`.
+
+### Fixed
+- El total del resumen de `analyze` sumaba el uso del volumen (`disk`) como si fuera
+  recuperable; ahora se muestra aparte como contexto.
+- Resumen de `docker` legible en el análisis.
+
+### Removed
+- `report --last`: `report` sin flags ya muestra el último reporte.
+
 ### Changed
 - Docs: instalación de nuevo vía go install (repo público); el binario del release con
   verificación de checksum queda como alternativa. Se retiraron datos de entorno ajenos al

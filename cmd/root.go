@@ -5,6 +5,8 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/arheanja-ops/mac-toolkit/internal/reporter"
+
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +52,8 @@ func resolveBuildInfo(ver, com, dt string, info *debug.BuildInfo) (string, strin
 func buildVersion() string {
 	info, _ := debug.ReadBuildInfo()
 	v, c, d := resolveBuildInfo(version, commit, date, info)
+	// Every saved report records the toolkit version that wrote it.
+	reporter.ToolVersion = v
 	return fmt.Sprintf("%s (commit %s, built %s)", v, c, d)
 }
 

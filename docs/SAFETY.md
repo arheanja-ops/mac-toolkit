@@ -25,6 +25,20 @@ repositorio (archivos citados entre paréntesis).
 `report` únicamente **leen** métricas del sistema (`df`, `ioreg`, `pmset`,
 `system_profiler`, `WalkDir`). No crean, modifican ni eliminan archivos
 (`analyze --save` y `Save report` de la TUI solo escriben su propio reporte en la carpeta de reportes del toolkit, `os.UserConfigDir()/mac-toolkit/reports`).
+
+- **Reportes (v1.10.0).** Cada guardado escribe `report.md`, `report.json` y
+  `report.html` (más la variante `share/`) con permisos `0600` dentro de una carpeta nueva
+  `analysis_<fecha_hora>` de la carpeta de reportes; nada más se escribe. El html es
+  autocontenido: CSS en línea, sin scripts ni recursos remotos, y todo dato pasa por
+  `html/template`, que lo escapa. La variante share omite el detalle por dominio, los
+  resúmenes y errores, sustituye los nombres de apps por "App N" y quita de las
+  recomendaciones cualquier palabra con rutas, `~` o hashes. (`internal/reporter/save.go`,
+  `internal/reporter/share.go`, `internal/reporter/html.go`)
+- **Abrir un reporte.** `report --open`, `analyze --open` y `Open report` (`o`) ejecutan
+  `open <ruta>` sin shell, y solo sobre un `report.html` existente dentro de la carpeta de
+  reportes; cualquier otra ruta se rechaza. Es la única vez que el toolkit lanza otro
+  programa por el usuario, y los tests lo sustituyen para no abrir nada.
+  (`internal/reporter/open.go`)
 (`cmd/doctor.go` — "strictly read-only — it never deletes").
 
 - **Estados térmicos.** Clasificar `pmset -g therm` como `Normal`, `Throttled`,
@@ -177,7 +191,9 @@ contenedores conservados, y esos rechazos se informan como fallos.
 | Acción | Por defecto | Para ejecutar |
 |--------|-------------|---------------|
 | `analyze` / `status` / monitores / `doctor` | solo lectura | — (nunca borra) |
-| TUI — Analyze/Status/monitores (incl. vistas Memory y CPU)/Preview/Doctor/Last report | solo lectura | — (nunca borra ni envía señales a procesos) |
+| TUI — Analyze/Status/monitores (incl. vistas Memory y CPU)/Preview/Doctor/Last report/Saved reports | solo lectura | — (nunca borra ni envía señales a procesos) |
+| `analyze --save` / TUI Save report | escribe solo su reporte (md, json, html y share) en la carpeta de reportes | — (no borra nada) |
+| `report --open` / TUI Open report (`o`) | abre el html del reporte con `open` | — (solo archivos de la carpeta de reportes) |
 | TUI — Clean (solo items `safe`) | preview/selección | selección explícita + confirmación `si` (blacklist + audit) |
 | `clean` | dry-run (preview) | `--execute` + aprobación + confirmación `si` |
 | Estados térmicos (`system`, header, `mac_system`) | solo lectura | — (nunca modifica nada) |

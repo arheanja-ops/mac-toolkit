@@ -3,54 +3,32 @@ package reporter
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"os"
-	"path/filepath"
-	"time"
 )
 
-type JSONReporter struct {
-	OutputDir string
-	// Quiet suppresses the stderr confirmation; the TUI owns the screen and a
-	// stray write would corrupt it.
-	Quiet bool
-}
-
-func (j *JSONReporter) Name() string { return "json" }
-
-type jsonReport struct {
-	Timestamp string                `json:"timestamp"`
-	Domains   []core.AnalysisResult `json:"domains"`
-}
-
-func (j *JSONReporter) Report(results []core.AnalysisResult) error {
-	if j.OutputDir == "" {
-		j.OutputDir = core.NewReportDir(core.AnalysisPrefix)
-	}
-	if err := os.MkdirAll(j.OutputDir, 0o755); err != nil {
-		return fmt.Errorf("creating report dir: %w", err)
-	}
-
-	report := jsonReport{
-		Timestamp: time.Now().Format(time.RFC3339),
-		Domains:   results,
-	}
-
-	path := filepath.Join(j.OutputDir, "report.json")
-	f, err := os.Create(path)
+// JSON serializes the model itself (schema_version included), so the file is
+// exactly what the markdown and HTML were rendered from.
+func (r Report) JSON() ([]byte, error) {
+	b, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return fmt.Errorf("creating json file: %w", err)
+		return nil, fmt.Errorf("encoding json report: %w", err)
 	}
-	defer f.Close()
+	return append(b, '\n'), nil
+}
 
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(report); err != nil {
-		return fmt.Errorf("encoding json: %w", err)
+// LoadJSON reads a report.json. A file written by a newer schema is refused
+// instead of being half-understood.
+func LoadJSON(path string) (Report, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Report{}, fmt.Errorf("reading report: %w", err)
 	}
-
-	if !j.Quiet {
-		core.Success("JSON report saved: %s", path)
+	var r Report
+	if err := json.Unmarshal(data, &r); err != nil {
+		return Report{}, fmt.Errorf("parsing report: %w", err)
 	}
-	return nil
+	if r.SchemaVersion < 1 || r.SchemaVersion > SchemaVersion {
+		return Report{}, fmt.Errorf("unsupported report schema version %d", r.SchemaVersion)
+	}
+	return r, nil
 }

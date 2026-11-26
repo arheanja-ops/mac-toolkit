@@ -36,6 +36,13 @@ func (s *SystemMonitor) Snapshot() (map[string]any, error) {
 		}
 	}
 
+	// macOS version for the report header; absent when sw_vers fails.
+	if out, err := runCmd("sw_vers", "-productVersion"); err == nil {
+		if v := strings.TrimSpace(string(out)); v != "" {
+			data["os_version"] = v
+		}
+	}
+
 	return s.addLive(data), nil
 }
 

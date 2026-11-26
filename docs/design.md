@@ -19,7 +19,7 @@ mac-toolkit/
 │   ├── clean.go                  # clean command (analyze → approve → delete)
 │   ├── full.go                   # full command (analyze → save → clean)
 │   ├── status.go                 # status command (domain list + risk levels)
-│   ├── report.go                 # report command (--last, list saved reports)
+│   ├── report.go                 # report command (last report formatted; --share, --list, --open)
 │   ├── battery.go                # battery monitor command
 │   ├── system.go                 # system monitor command
 │   ├── processes.go              # processes monitor command
@@ -529,6 +529,22 @@ is `Unknown` ("ignorance must not raise an alarm"). `IsThermalAlert` is an allow
 | Integration tests, symlink blacklist tests (section 7) | Not present; the suite is 108 top-level tests (167 with subtests) across `cmd`, `ai`, `analyzer`, `cleaner`, `core`, `monitor`, `tui` |
 | MCP server version | `mcp.Implementation.Version` is a fixed `"1.0.0"` in `cmd/mcp.go` |
 
+
+## v1.10.0 — Report v2
+
+- `internal/reporter`: one `Report` model (`model.go`, `schema_version` 1) built once by
+  `Build(Inputs)` (`build.go`, `build_system.go`) from the analysis, a single monitor
+  reading (`ai.CollectMetrics`) and the diagnosis; `Collect` gathers the inputs. Markdown
+  (`markdown.go`), JSON (`json.go`, `LoadJSON`) and HTML (`html.go` + `html_template.go`,
+  `html/template`, inline CSS) only render it. `Share()` (`share.go`) returns the redacted
+  variant. `SaveReport` (`save.go`) writes both variants with 0600 permissions and replaces
+  `SaveAnalysis`. `OpenReport` (`open.go`) runs `open` through the injectable `OpenFn`,
+  only for a `report.html` inside the reports folder.
+- Reclaimable total = safe + review, without the `disk` domain (volume = context).
+- `internal/core/reports.go`: `ReportEntry` gains `Dir`, `Formats`, `HasShare`.
+- `internal/tui/report_render.go`: `RenderReport(r, w)`, shared by the TUI (Last report)
+  and `mac-toolkit report`. `reports_view.go` adds Open report (`o`).
+- Spec: `docs/specs/2026-11-25-report-v2.md`.
 
 ## v1.9.0 — Categories, process views and reports
 

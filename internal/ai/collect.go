@@ -14,18 +14,59 @@ func BuildDoctorSnapshot(analyze func() []core.AnalysisResult) AISnapshot {
 	return BuildSnapshot(analyze(), systemMetrics(), core.ReadDiskSnapshot())
 }
 
-// systemMetrics reuses SystemMonitor for CPU/mem/swap/thermal, merges the
-// numeric keys of MemoryMonitor and CPUMonitor (load per core, CPU split,
-// paging flag, pressure code; nothing else, so no app names or paths ride
-// along) and injects the
-// hottest process as plain name+pct (no PID) sourced from ProcessMonitor. A
-// degraded monitor yields a nil/partial map, which BuildSnapshot tolerates.
-func systemMetrics() map[string]any {
-	sys, err := (&monitor.SystemMonitor{}).Snapshot()
-	if err != nil || sys == nil {
-		sys = map[string]any{}
+// Metrics is ONE reading of the three system monitors. Report v2 and the
+// diagnosis both consume the same value, so a report never shows numbers that
+// differ from the ones its recommendations were derived from.
+type Metrics struct {
+	System map[string]any
+	Memory map[string]any
+	CPU    map[string]any
+}
+
+// metricsFn reads the monitors; a package var so tests never touch the machine.
+var metricsFn = func() Metrics {
+	var m Metrics
+	m.System, _ = (&monitor.SystemMonitor{}).Snapshot()
+	m.Memory, _ = (&monitor.MemoryMonitor{}).Snapshot()
+	m.CPU, _ = (&monitor.CPUMonitor{}).Snapshot()
+	return m
+}
+
+// CollectMetrics returns one reading of the system, memory and CPU monitors. A
+// failing monitor yields a nil map, which every consumer tolerates.
+func CollectMetrics() Metrics { return metricsFn() }
+
+// Merged returns the system map the snapshot builder expects: the system
+// monitor's keys plus the allowlisted numeric keys of memory and CPU (see
+// loadKeys: nothing with app names or paths rides along). The caller adds the
+// hottest process, since its source differs per front-end.
+func (m Metrics) Merged() map[string]any {
+	sys := map[string]any{}
+	for k, v := range m.System {
+		sys[k] = v
 	}
-	mergeLoadKeys(sys)
+	copyAllowed(sys, "memory", m.Memory)
+	copyAllowed(sys, "cpu", m.CPU)
+	return sys
+}
+
+// SnapshotFromMetrics builds the PII-free snapshot from an already collected
+// reading. The hottest process is the busiest app of the CPU monitor (name and
+// percentage only).
+func SnapshotFromMetrics(results []core.AnalysisResult, m Metrics, disk core.DiskSnapshot) AISnapshot {
+	sys := m.Merged()
+	if apps, _ := m.CPU["top_cpu"].([]monitor.AppUsage); len(apps) > 0 {
+		sys["top_cpu_name"] = apps[0].Name
+		sys["top_cpu_pct"] = apps[0].CPUPct
+	}
+	return BuildSnapshot(results, sys, disk)
+}
+
+// systemMetrics reuses CollectMetrics and injects the hottest process as plain
+// name+pct (no PID) sourced from ProcessMonitor. A degraded monitor yields a
+// nil/partial map, which BuildSnapshot tolerates.
+func systemMetrics() map[string]any {
+	sys := CollectMetrics().Merged()
 	if name, pct, ok := topCPUProcess(); ok {
 		sys["top_cpu_name"] = name
 		sys["top_cpu_pct"] = pct
@@ -39,22 +80,6 @@ func systemMetrics() map[string]any {
 var loadKeys = map[string][]string{
 	"memory": {"swap_thrash", "pressure_code"},
 	"cpu":    {"user_pct", "sys_pct", "idle_pct", "load5_per_core"},
-}
-
-// mergeLoadKeys copies the allowlisted numeric keys from the dedicated
-// monitors. A failing monitor simply contributes nothing.
-func mergeLoadKeys(sys map[string]any) {
-	monitors := map[string]monitor.Monitor{
-		"memory": &monitor.MemoryMonitor{},
-		"cpu":    &monitor.CPUMonitor{},
-	}
-	for name, m := range monitors {
-		data, err := m.Snapshot()
-		if err != nil {
-			continue
-		}
-		copyAllowed(sys, name, data)
-	}
 }
 
 // copyAllowed copies only the allowlisted keys of one monitor's snapshot.

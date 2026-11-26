@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
+	"github.com/arheanja-ops/mac-toolkit/internal/reporter"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -24,6 +26,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	core.ReportsDirOverride = dir
+	// No test may open a file on the machine: the system opener is disabled
+	// (tests that exercise Open report inject their own fake on top).
+	reporter.OpenFn = func(string) error { return errors.New("opener disabled in tests") }
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)

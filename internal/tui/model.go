@@ -240,6 +240,8 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openShortcut(viewMemory)
 	case "u":
 		return m.openShortcut(viewCPU)
+	case "o":
+		return m.openShortcut(viewOpenReport)
 	case "r":
 		if m.openView != viewNone {
 			return m.runView(m.openView)
@@ -608,7 +610,7 @@ func renderFooter(mode cleanMode, width int) string {
 		hints = []struct{ key, desc string }{
 			{"↑↓", "nav"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
 			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
-			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"r", "refrescar"},
+			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"o", "html"}, {"r", "refrescar"},
 			{"/", "filtrar"}, {"q", "salir"},
 		}
 		// When the full set does not fit the width it overflows, so drop
