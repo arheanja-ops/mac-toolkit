@@ -105,6 +105,7 @@ Menú (`internal/tui/actions.go`):
 | PROCESSES | Top by CPU · Top by memory · By app · Summary |
 | SYSTEM | Battery · System info · Network |
 | REPORTS | Last report · Saved reports · Save report · Open report |
+| ALERTS | Active alerts · History |
 | SESSION | Quit / Salir |
 
 **Teclas en modo normal** (`internal/tui/model.go`):
@@ -122,6 +123,8 @@ Menú (`internal/tui/actions.go`):
 | `m` | Memory (RAM, presión, swap, top apps; solo lectura) |
 | `u` | CPU (user/sys/idle, load por núcleo, top apps) |
 | `o` | Open report: abre el html del último reporte en el navegador |
+| `n` | Notificaciones del modo escucha on/off |
+| `w` | Pausar/reanudar el modo escucha |
 | `r` | Refrescar la vista abierta (cualquiera del menú); sin vista abierta no hace nada |
 | `q` · `Ctrl+C` · `Esc` | Salir (con filtro activo, `Esc` solo cierra el filtro) |
 
@@ -187,6 +190,37 @@ usada porque el sistema la devuelve cuando hace falta. Esa cifra es la que muest
 mac-toolkit menu     # menú lineal (promptui) — fallback si no hay TUI
 ```
 
+**Modo escucha.** Mientras la TUI está abierta (o con `mac-toolkit watch`), el toolkit
+toma una muestra liviana cada 15 s con `sysctl`, `vm_stat`, `iostat` y `statfs`. Además
+lee `ps` cada 30 s y `pmset` cada 60 s; nunca usa `top`. Medido: ≈0,6 % de CPU y ~20 MB
+de RAM. Alerta solo cuando un problema se sostiene:
+
+| Alerta | Condición | Ventana |
+|--------|-----------|---------|
+| Presión de memoria | Warning / Critical | 2 min |
+| Swap casi lleno | swap usado > 90 % | 2 min |
+| Paginación intensa | swap-out > 20 MB/s | 2 min |
+| CPU saturada | carga por núcleo > 2 y CPU libre < 20 % | 3 min |
+| Carga con CPU libre | carga por núcleo > 2 y CPU libre > 50 % | 3 min |
+| Disco casi lleno | libre < 10 GB o < 5 % | inmediata |
+| Térmico | Throttled / Warning | 1 min |
+
+Las alertas llegan como notificaciones de macOS, con anti-spam:
+- 15 min de cooldown por regla, salvo que la alerta escale.
+- Como máximo 6 por hora.
+- El aviso de "resuelto" solo sale para las críticas.
+
+`n` las activa o desactiva y `w` pausa o reanuda la escucha; `--no-notify` arranca con
+las notificaciones apagadas. El header muestra `● escuchando` y `⚠ N` con las alertas
+activas.
+
+La categoría **ALERTS** tiene *Active alerts* (regla, severidad, desde cuándo, cifra) e
+*History* (últimas 24 h por hora). El historial se guarda en
+`~/Library/Application Support/mac-toolkit/history/AAAA-MM-DD.jsonl`, una línea por
+muestra (números y nombre de la app top, sin rutas ni PIDs), con 7 días de retención.
+`mac-toolkit history --since HH:MM` resume un rango. Es solo lectura: nunca mata
+procesos ni cambia nada.
+
 ### Diagnóstico con IA — `doctor`
 
 ```bash
@@ -240,6 +274,8 @@ mac-toolkit network      # WiFi, estadísticas, conectividad
 
 # Info
 mac-toolkit status       # Dominios registrados y niveles de riesgo
+mac-toolkit watch          # Modo escucha sin TUI: alertas sostenidas + notificaciones (--no-notify)
+mac-toolkit history --since 08:00 --until 10:20   # Qué pasó en un rango (--json)
 mac-toolkit report         # Último reporte guardado, formateado
 mac-toolkit report --share # Su variante share (sin rutas ni nombres)
 mac-toolkit report --list  # Reportes guardados con formatos y variantes

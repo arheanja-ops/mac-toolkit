@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-25
+
+### Added
+- **Modo escucha** (`internal/watch`): muestra liviana cada 15 s (sin `top`; medido ≈0,6 %
+  de CPU y ~20 MB). Alertas con umbral sostenido: presión de memoria, swap casi lleno,
+  paginación intensa, CPU saturada, carga con CPU libre, disco casi lleno y térmico.
+  Se resuelven al normalizarse.
+- **Notificaciones de macOS** con anti-spam: 15 min de cooldown por regla salvo
+  escalado, 6 por hora y "resuelto" solo para alertas críticas. `--no-notify` y la tecla
+  `n`.
+- TUI: la escucha arranca con la TUI; el header muestra `● escuchando` y `⚠ N`, y reutiliza
+  la última muestra en lugar de leer por su cuenta. Nueva categoría **ALERTS** (Active
+  alerts, History de 24 h por hora); `w` pausa o reanuda.
+- `mac-toolkit watch` (escucha sin TUI) y `mac-toolkit history --since/--until [--json]`
+  (mín, promedio, p95 y máx por métrica, alertas con inicio y fin, apps más frecuentes).
+- Historial JSONL diario en `os.UserConfigDir()/mac-toolkit/history`, con 7 días de
+  retención.
+
 ## [1.10.0] - 2026-11-25
 
 ### Added

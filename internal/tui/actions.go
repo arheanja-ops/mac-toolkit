@@ -66,6 +66,8 @@ func buildActions() []actionItem {
 		viewItem("Reports", "Saved reports", viewSavedReports),
 		viewItem("Reports", "Save report", viewSaveReport),
 		viewItem("Reports", "Open report", viewOpenReport),
+		viewItem("Alerts", "Active alerts", viewAlerts),
+		viewItem("Alerts", "History", viewHistory),
 		// Session controls. Quit has no run(); it is handled specially by the
 		// model, which returns tea.Quit when this item is selected.
 		{label: "Quit / Salir", group: "Session", quit: true},

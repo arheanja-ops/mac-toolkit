@@ -227,7 +227,7 @@ func TestNavigationCoversMenuAt80x24(t *testing.T) {
 }
 
 func TestAllMenuItemsAreSelectableAndGrouped(t *testing.T) {
-	want := []string{"Health", "Disk", "Clean", "Memory", "CPU", "Processes", "System", "Reports", "Session"}
+	want := []string{"Health", "Disk", "Clean", "Memory", "CPU", "Processes", "System", "Reports", "Alerts", "Session"}
 	var got []string
 	for _, a := range buildActions() {
 		if len(got) == 0 || got[len(got)-1] != a.group {

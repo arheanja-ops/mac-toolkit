@@ -30,12 +30,19 @@ var menuCmd = &cobra.Command{
 // runTUI starts the TUI and degrades to a clear error (suggesting `menu`)
 // when it cannot initialize, e.g. no TTY.
 func runTUI() {
-	if err := tui.Run(version); err != nil {
+	if err := tui.Run(version, !tuiNoNotify); err != nil {
 		core.Error("%v", err)
 	}
 }
 
+// tuiNoNotify turns off the listening mode's macOS notifications for the TUI
+// (they can also be toggled inside with n).
+var tuiNoNotify bool
+
 func init() {
+	for _, c := range []*cobra.Command{rootCmd, tuiCmd} {
+		c.Flags().BoolVar(&tuiNoNotify, "no-notify", false, "start the TUI with macOS notifications off (toggle with n)")
+	}
 	rootCmd.AddCommand(tuiCmd)
 	rootCmd.AddCommand(menuCmd)
 }

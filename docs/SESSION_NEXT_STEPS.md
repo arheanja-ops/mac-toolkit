@@ -1,13 +1,23 @@
 # 📍 DÓNDE VAMOS — Punto de retomada
 
 **Última actualización:** 2026-11-25
-**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.10.0**
+**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.11.0**
 
-## ⏭️ Siguiente: v1.11.0 "modo escucha"
+## ⏭️ Siguiente
 
-Spec aprobada en `docs/specs/2026-11-25-watch-mode.md` (aún sin commitear; entra con su
-propio PR): muestreo liviano cada 15 s, alertas por umbral sostenido, anti-spam,
-notificaciones de macOS, historial de 7 días y `mac-toolkit history --since/--until`.
+Sin versión planificada. Ideas fuera de alcance de v1.11.0: daemon/launchd con la
+herramienta cerrada, tool MCP de historial y umbrales configurables.
+
+## ✅ Resuelto en v1.11.0 "modo escucha"
+
+- **Escucha liviana** cada 15 s (≈0,6 % de CPU, ~20 MB) con alertas de umbral sostenido
+  y resolución automática.
+- **Notificaciones de macOS** con anti-spam (cooldown 15 min, escalado, 6 por hora);
+  `--no-notify` y la tecla `n`.
+- TUI: badge `● escuchando ⚠ N`, categoría ALERTS (Active alerts y History) y `w` para
+  pausar. CLI: `watch` y `history --since/--until`.
+- Historial JSONL de 7 días en `os.UserConfigDir()/mac-toolkit/history`.
+  Spec: `docs/specs/2026-11-25-watch-mode.md`.
 
 ## ✅ Resuelto en v1.10.0 "Report v2"
 
