@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/arheanja-ops/mac-toolkit/internal/analyzer"
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/reporter"
@@ -10,6 +12,8 @@ import (
 
 var (
 	analyzeSave    bool
+	analyzeShare   bool
+	analyzeOpen    bool
 	analyzeMinSize int
 	analyzeDomain  string
 )
@@ -22,8 +26,9 @@ var analyzeCmd = &cobra.Command{
 		tr := &reporter.TerminalReporter{}
 		tr.Report(results)
 
-		if analyzeSave {
-			saveReports(results)
+		// --share and --open need the files on disk, so they imply --save.
+		if analyzeSave || analyzeShare || analyzeOpen {
+			saveReports(results, analyzeShare, analyzeOpen)
 		}
 		// Explicit end-of-run signal: the human report goes to stderr, which can
 		// read as "nothing happened" on success. A final ✓ confirms completion.
@@ -32,7 +37,9 @@ var analyzeCmd = &cobra.Command{
 }
 
 func init() {
-	analyzeCmd.Flags().BoolVar(&analyzeSave, "save", false, "save report to file")
+	analyzeCmd.Flags().BoolVar(&analyzeSave, "save", false, "save the report (md, json, html and the share variant)")
+	analyzeCmd.Flags().BoolVar(&analyzeShare, "share", false, "print the paths of the share variant (no paths or names; implies --save)")
+	analyzeCmd.Flags().BoolVar(&analyzeOpen, "open", false, "open the html report in the browser (implies --save)")
 	analyzeCmd.Flags().IntVar(&analyzeMinSize, "min-size", 50, "minimum file size in MB")
 	analyzeCmd.Flags().StringVar(&analyzeDomain, "domain", "", "analyze only this domain")
 	rootCmd.AddCommand(analyzeCmd)
@@ -59,13 +66,29 @@ func runAnalysis(domain string) []core.AnalysisResult {
 	return core.RunAnalyzers(tasks, core.AnalyzerTimeoutSeconds)
 }
 
-// saveReports saves both markdown and JSON reports into the canonical folder
-// (core.ReportsDir) and prints where they went.
-func saveReports(results []core.AnalysisResult) {
-	dir, err := reporter.SaveAnalysis(results, false)
+// saveReports builds the single report model, saves it (full + share variant)
+// into the canonical folder (core.ReportsDir) and prints the md, json and html
+// paths of the requested variant. open launches the html with the system opener.
+func saveReports(results []core.AnalysisResult, share, open bool) {
+	saved, err := reporter.SaveReport(reporter.Collect(results))
 	if err != nil {
 		core.Error("Report: %v", err)
 		return
 	}
-	core.Info("Reportes en: %s", dir)
+	paths, label := saved.Full, "Reporte completo"
+	if share {
+		paths, label = saved.Share, "Reporte para compartir (sin rutas ni nombres)"
+	}
+	core.Info("%s:", label)
+	for _, p := range paths {
+		fmt.Println(p)
+	}
+	if open {
+		p, err := reporter.OpenReport(saved.Dir, share)
+		if err != nil {
+			core.Error("Open: %v", err)
+			return
+		}
+		core.Info("Abierto: %s", p)
+	}
 }

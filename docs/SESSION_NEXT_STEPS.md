@@ -1,7 +1,27 @@
 # 📍 DÓNDE VAMOS — Punto de retomada
 
 **Última actualización:** 2026-11-25
-**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.9.0**
+**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.10.0**
+
+## ⏭️ Siguiente: v1.11.0 "modo escucha"
+
+Spec aprobada en `docs/specs/2026-11-25-watch-mode.md` (aún sin commitear; entra con su
+propio PR): muestreo liviano cada 15 s, alertas por umbral sostenido, anti-spam,
+notificaciones de macOS, historial de 7 días y `mac-toolkit history --since/--until`.
+
+## ✅ Resuelto en v1.10.0 "Report v2"
+
+- **Modelo único de reporte** (`internal/reporter`): md, json (`schema_version`) y html
+  autocontenido salen del mismo `Report`, así que las cifras coinciden.
+- **Total recuperable sin el volumen**: Seguro + A revisar; `disk` es contexto (también
+  en el resumen de `analyze`).
+- **Variante share** (`share/`): sin rutas, nombres de archivo, etiquetas, hashes ni
+  nombres de apps.
+- CLI: `analyze --save` imprime las rutas; `--share` y `--open`; `report` formateado con
+  `--share`, `--list` y `--open` (se quita `--last`).
+- TUI: Last report estructurado, Saved reports con formatos y variantes, Save report
+  completo y `o` = Open report.
+  Spec: `docs/specs/2026-11-25-report-v2.md`.
 
 ## ✅ Resuelto en v1.9.0
 

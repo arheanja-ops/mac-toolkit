@@ -16,7 +16,7 @@ var fullCmd = &cobra.Command{
 		// First analyze + save
 		results := runAnalysis("")
 		if results != nil {
-			saveReports(results)
+			saveReports(results, false, false)
 		}
 		// Then clean
 		runClean("", fullMode, fullExecute)

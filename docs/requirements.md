@@ -39,7 +39,6 @@ The binary is called `toolkit`. It uses **cobra** for command routing.
 | `--domain <name>`   | string | all     | Restrict to a single analyzer domain     |
 | `--mode <mode>`     | string | deal    | Approval mode: deal/category/item/checklist |
 | `--save`            | bool   | false   | Save report to the canonical reports folder (`core.ReportsDir()`) |
-| `--last`            | bool   | false   | Show the most recent saved report        |
 | `--timeout`         | int    | 120     | Analysis timeout in seconds              |
 
 ### 1.2 Interactive Menu
@@ -260,13 +259,13 @@ is attack surface and maintenance burden.
 | ------------- | ---------------------- |
 | Binary called `toolkit` | Command is `mac-toolkit` (release binary, or `go install` with private access); `make build` still writes `bin/toolkit` |
 | No subcommand → huh/bubbletea menu | No subcommand → two-pane TUI; the menu is `mac-toolkit menu` (promptui) |
-| "Global flags" `--execute`, `--domain`, `--mode`, `--save`, `--last`, `--timeout` | Per-command flags: `analyze` (`--domain`, `--min-size`, `--save`), `clean` (`--domain`, `--execute`, `--mode`), `full` (`--execute`, `--mode`), `report` (`--last`), `doctor` (`--no-ai`, `--json`); only `-v/--verbose` is global |
+| "Global flags" `--execute`, `--domain`, `--mode`, `--save`, `--last`, `--timeout` | Per-command flags: `analyze` (`--domain`, `--min-size`, `--save`, `--share`, `--open`), `clean` (`--domain`, `--execute`, `--mode`), `full` (`--execute`, `--mode`), `report` (`--share`, `--list`, `--open`), `doctor` (`--no-ai`, `--json`); only `-v/--verbose` is global |
 | Go 1.22+ | `go 1.25.0` in `go.mod` |
 | Parallelism via errgroup; default timeout 120 s | goroutines + `sync.Mutex` (`core.RunAnalyzers`); timeout 180 s (`core.AnalyzerTimeoutSeconds`) |
 | Dependencies: gopsutil, huh, tablewriter, uuid, testify | Not used. Direct deps: cobra, bubbletea, lipgloss, bubbles, promptui, go-isatty, MCP go-sdk; stdlib tests |
 | Reporter `terminal` via lipgloss + tablewriter | Own ANSI/terminal reporter (`internal/reporter/terminal.go`) |
 | `audit.json` append-only | One `audit.json` per cleanup session in `<reports folder>/cleanup_<timestamp>/` |
-| Report filename `report-<ts>.md` | `<reports folder>/analysis_<ts>/report.md` and `report.json` |
+| Report filename `report-<ts>.md` | `<reports folder>/analysis_<ts>/report.md`, `report.json`, `report.html` and the `share/` variant (v1.10.0) |
 | `reports/` relative to the working directory | (v1.9.0) Fixed folder `os.UserConfigDir()/mac-toolkit/reports` (macOS: `~/Library/Application Support/mac-toolkit/reports`), independent of the cwd |
 | Flat TUI menu | (v1.9.0) Category menu: Health, Disk, Clean, Memory, CPU, Processes, System, Reports, Session |
 | Test coverage ≥ 80 % | Not met: 31.3 % `internal/core`, 63.9 % `internal/cleaner` (measured with `go test -cover`) |

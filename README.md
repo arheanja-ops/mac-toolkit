@@ -104,7 +104,7 @@ Menú (`internal/tui/actions.go`):
 | CPU | Overview · Load · Top apps · Thermal |
 | PROCESSES | Top by CPU · Top by memory · By app · Summary |
 | SYSTEM | Battery · System info · Network |
-| REPORTS | Last report · Saved reports · Save report |
+| REPORTS | Last report · Saved reports · Save report · Open report |
 | SESSION | Quit / Salir |
 
 **Teclas en modo normal** (`internal/tui/model.go`):
@@ -121,6 +121,7 @@ Menú (`internal/tui/actions.go`):
 | `d` | Doctor (diagnóstico priorizado, solo lectura) |
 | `m` | Memory (RAM, presión, swap, top apps; solo lectura) |
 | `u` | CPU (user/sys/idle, load por núcleo, top apps) |
+| `o` | Open report: abre el html del último reporte en el navegador |
 | `r` | Refrescar la vista abierta (cualquiera del menú); sin vista abierta no hace nada |
 | `q` · `Ctrl+C` · `Esc` | Salir (con filtro activo, `Esc` solo cierra el filtro) |
 
@@ -144,11 +145,20 @@ partir de números agregados.
 
 **Reportes.** Viven en una carpeta fija, independiente del directorio de trabajo:
 `~/Library/Application Support/mac-toolkit/reports` (`os.UserConfigDir()/mac-toolkit/reports`).
-`analyze --save` y **Save report** (REPORTS) escriben ahí `analysis_<fecha_hora>/report.md`
-y `report.json` e imprimen la ruta; `mac-toolkit report` y **Last report** / **Saved
-reports** los encuentran desde cualquier carpeta. El audit de `clean` también se guarda ahí
-(`cleanup_<fecha_hora>/audit.json`). Sin reportes, la TUI explica cómo crear el primero.
-**Save report** es la única entrada de la TUI que escribe, y solo dentro de esa carpeta.
+`analyze --save` y **Save report** (REPORTS) escriben ahí `analysis_<fecha_hora>/` con el
+reporte en tres formatos (`report.md`, `report.json`, `report.html`) más la variante
+**share** en `share/` (sin rutas, nombres de archivo, etiquetas ni nombres de apps, para
+compartir) e imprimen las rutas. Los tres formatos salen del mismo modelo, así que las
+cifras coinciden. El **total recuperable** es seguro + a revisar y nunca incluye el uso del
+volumen (`disk`), que se muestra aparte como contexto. El html es autocontenido (CSS en
+línea, sin scripts ni recursos remotos) e imprimible.
+
+`mac-toolkit report` y **Last report** muestran el último reporte formateado (tablas por
+ancho); **Saved reports** lista fecha, tamaño, formatos y variantes; **Open report** (`o`)
+y `report --open` abren el html con `open`. El audit de `clean` también se guarda en esa
+carpeta (`cleanup_<fecha_hora>/audit.json`). Sin reportes, la TUI explica cómo crear el
+primero. **Save report** es la única entrada de la TUI que escribe, y solo dentro de esa
+carpeta.
 
 #### ¿Qué es "memoria usada"?
 
@@ -206,7 +216,9 @@ determinista (sin depender de internet). También está disponible en la TUI
 # Disk cleanup
 mac-toolkit analyze                          # Análisis completo
 mac-toolkit analyze --domain dev_caches      # Solo un dominio
-mac-toolkit analyze --save                   # Guardar reporte MD + JSON
+mac-toolkit analyze --save                   # Guardar reporte md + json + html (+ share)
+mac-toolkit analyze --save --share           # Igual, e imprime las rutas de la variante share
+mac-toolkit analyze --open                   # Guardar y abrir el html en el navegador
 mac-toolkit clean --execute --mode checklist # Limpieza con checklist (dry-run por defecto)
 mac-toolkit full --execute                   # Analizar + guardar + limpiar
 
@@ -228,7 +240,10 @@ mac-toolkit network      # WiFi, estadísticas, conectividad
 
 # Info
 mac-toolkit status       # Dominios registrados y niveles de riesgo
-mac-toolkit report --last # Último reporte guardado
+mac-toolkit report         # Último reporte guardado, formateado
+mac-toolkit report --share # Su variante share (sin rutas ni nombres)
+mac-toolkit report --list  # Reportes guardados con formatos y variantes
+mac-toolkit report --open  # Abrir el html del último reporte
 ```
 
 ## Dominios de análisis (11)

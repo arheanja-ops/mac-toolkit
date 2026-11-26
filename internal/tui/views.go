@@ -34,6 +34,7 @@ const (
 	viewLastReport
 	viewSavedReports
 	viewSaveReport
+	viewOpenReport
 )
 
 // viewRunners maps each dedicated view to its read-only producer. A package
@@ -58,6 +59,7 @@ var viewRunners = map[viewID]func(width int) (string, error){
 	viewLastReport:   runLastReport,
 	viewSavedReports: runSavedReports,
 	viewSaveReport:   runSaveReport,
+	viewOpenReport:   runOpenReport,
 }
 
 // viewTitles label the detail pane per view, so the border reads as a tab.
@@ -68,7 +70,7 @@ var viewTitles = map[viewID]string{
 	viewProcMem: "PROCESSES · TOP BY MEMORY", viewProcApps: "PROCESSES · BY APP",
 	viewProcSummary: "PROCESSES · SUMMARY", viewBattery: "SYSTEM · BATTERY", viewSystem: "SYSTEM · INFO",
 	viewNetwork: "SYSTEM · NETWORK", viewLastReport: "REPORTS · LAST", viewSavedReports: "REPORTS · SAVED",
-	viewSaveReport: "REPORTS · SAVE",
+	viewSaveReport: "REPORTS · SAVE", viewOpenReport: "REPORTS · OPEN",
 }
 
 // runner returns the read-only producer behind a view (nil for viewNone).

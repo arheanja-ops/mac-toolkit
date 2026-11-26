@@ -39,8 +39,10 @@ func domainProportionBar(size, total int64, width int) string {
 func PrintSummary(results []core.AnalysisResult) {
 	var totalSize int64
 	var totalItems int
+	// The disk domain is the volume usage (context), never reclaimable junk:
+	// it is shown but left out of the total, like the saved report does.
 	for _, r := range results {
-		if r.Error == "" {
+		if r.Error == "" && r.Domain != diskDomain {
 			totalSize += r.TotalSize
 			totalItems += len(r.Items)
 		}
@@ -69,6 +71,12 @@ func PrintSummary(results []core.AnalysisResult) {
 		}
 
 		color := core.SeverityColor(r.Severity)
+		if r.Domain == diskDomain {
+			fmt.Fprintf(os.Stderr, "  %-13s %s%-10s%s %-11s %-7s %s\n",
+				r.Domain, color, string(r.Severity), core.Reset,
+				core.FormatBytes(r.TotalSize), "-", core.Colorize(core.Gray, "volume used (context, not summed)"))
+			continue
+		}
 		bar := domainProportionBar(r.TotalSize, totalSize, 18)
 		fmt.Fprintf(os.Stderr, "  %-13s %s%-10s%s %-11s %-7d %s\n",
 			r.Domain, color, string(r.Severity), core.Reset,
@@ -76,7 +84,7 @@ func PrintSummary(results []core.AnalysisResult) {
 	}
 
 	fmt.Fprintln(os.Stderr, core.Colorize(core.Gray, strings.Repeat("─", 72)))
-	core.Bold("Total: %s in %d items across %d domains",
+	core.Bold("Total reclaimable: %s in %d items across %d domains (volume excluded)",
 		core.FormatBytes(totalSize), totalItems, len(results))
 }
 

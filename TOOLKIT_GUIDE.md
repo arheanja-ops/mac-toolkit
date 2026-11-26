@@ -100,7 +100,7 @@ Tras una pantalla de bienvenida (banner + resumen del sistema), la TUI muestra:
   CLEAN (Preview, Select & clean), MEMORY (Overview, Swap & paging, Top apps), CPU
   (Overview, Load, Top apps, Thermal), PROCESSES (Top by CPU, Top by memory, By app,
   Summary), SYSTEM (Battery, System info, Network), REPORTS (Last report, Saved reports,
-  Save report) y SESSION (Quit / Salir).
+  Save report, Open report) y SESSION (Quit / Salir).
 - **Panel derecho** — resultado de la acción, con scroll. Responsive hasta 80x24.
 
 | Modo | Teclas |
@@ -123,7 +123,10 @@ el motor usado. Solo lectura; cada pulsación re-analiza sin caché.
 **Reportes.** La carpeta es fija: `~/Library/Application Support/mac-toolkit/reports`
 (`os.UserConfigDir()/mac-toolkit/reports`), así que `mac-toolkit report`, `Last report` y
 `Saved reports` funcionan desde cualquier directorio. `analyze --save` y `Save report`
-guardan `analysis_<fecha_hora>/report.md` + `report.json` e informan la ruta.
+guardan en `analysis_<fecha_hora>/` el reporte en md, json y html, más la variante
+`share/` (sin rutas ni nombres), e imprimen las rutas. `report` muestra el último reporte
+formateado (`--share` su variante, `--list` todos, `--open` abre el html); en la TUI,
+`o` hace lo mismo que Open report. El total recuperable nunca incluye el uso del volumen.
 
 ### Menú lineal (fallback)
 
@@ -214,7 +217,7 @@ mac-toolkit network      # WiFi, tráfico, conexiones, conectividad
 
 ```bash
 mac-toolkit status           # Dominios y niveles de riesgo
-mac-toolkit report --last    # Ver último reporte guardado
+mac-toolkit report           # Ver el último reporte guardado (--share · --list · --open)
 mac-toolkit mcp              # Iniciar MCP server (stdio)
 mac-toolkit completion zsh   # Autocompletado de shell (bash|zsh|fish|powershell)
 ```
@@ -633,7 +636,7 @@ mac-toolkit/
 │   ├── clean.go              # clean + approval flow
 │   ├── full.go               # full (analyze + save + clean)
 │   ├── status.go             # status (dominios + riesgos)
-│   ├── report.go             # report --last
+│   ├── report.go             # report (--share · --list · --open)
 │   ├── monitors.go           # battery, system, memory, cpu, processes, network
 │   └── mcp.go                # MCP server (12 tools, stdio transport)
 ├── internal/

@@ -8,6 +8,7 @@ import (
 
 	"github.com/arheanja-ops/mac-toolkit/internal/core"
 	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
+	"github.com/arheanja-ops/mac-toolkit/internal/reporter"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -84,7 +85,9 @@ func TestNewViewsFitWidthsAndHideStructs(t *testing.T) {
 	writeReport(t, "analysis_20260102_030405",
 		"# Report\n\n| Domain | Size |\n|---|---|\n| `caches` | **1.0 GB** |\n\nplain text line that is quite long and must be cut to the width\n")
 	origSave := saveReportFn
-	saveReportFn = func() (string, int, error) { return filepath.Join(core.ReportsDir(), "analysis_x"), 11, nil }
+	saveReportFn = func() (reporter.Saved, int, error) {
+		return reporter.Saved{Dir: filepath.Join(core.ReportsDir(), "analysis_x")}, 11, nil
+	}
 	t.Cleanup(func() { saveReportFn = origSave })
 	origProc, origMem, origCPU := procFn, memoryFn, cpuFn
 	procFn = func() (map[string]any, error) { return sampleProc(), nil }
@@ -97,6 +100,7 @@ func TestNewViewsFitWidthsAndHideStructs(t *testing.T) {
 		"proc-summary": runProcSummary, "mem-swap": runMemorySwap, "mem-apps": runMemoryApps,
 		"cpu-load": runCPULoad, "cpu-apps": runCPUApps, "cpu-thermal": runCPUThermal,
 		"last-report": runLastReport, "saved-reports": runSavedReports, "save-report": runSaveReport,
+		"open-report": runOpenReport,
 	}
 	for name, run := range views {
 		for _, width := range []int{40, 50, 60, 80} {
@@ -305,7 +309,7 @@ func TestOnlySaveReportWrites(t *testing.T) {
 	}
 	withReportsDir(t, t.TempDir())
 	origSave := saveReportFn
-	saveReportFn = func() (string, int, error) { return core.ReportsDir(), 0, nil }
+	saveReportFn = func() (reporter.Saved, int, error) { return reporter.Saved{Dir: core.ReportsDir()}, 0, nil }
 	t.Cleanup(func() { saveReportFn = origSave })
 	if _, err := runSaveReport(60); err != nil {
 		t.Fatal(err)
