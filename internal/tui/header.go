@@ -9,6 +9,7 @@ import (
 	"github.com/arheanja-ops/mac-toolkit/internal/monitor"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // headerInterval is the pause between live-header refreshes.
@@ -26,6 +27,7 @@ type headerStats struct {
 	cpuUsedPct int
 	thermal    string
 	ok         bool
+	watch      watchBadge // listening-mode indicator, independent of ok
 }
 
 // headerTickMsg carries a fresh disk+system reading produced off the event loop.
@@ -43,6 +45,17 @@ var systemSnapshotFn = func() (map[string]any, error) {
 // readHeaderStats converts a system snapshot into headerStats, degrading field
 // by field. Any missing field is simply left at its zero value.
 func readHeaderStats() headerStats {
+	s := readSystemStats()
+	s.watch = readWatchBadge()
+	return s
+}
+
+// readSystemStats prefers the listening engine's last sample, so the header
+// does not read the machine a second time while the engine is sampling.
+func readSystemStats() headerStats {
+	if s, ok := engineHeaderStats(); ok {
+		return s
+	}
 	data, err := systemSnapshotFn()
 	if err != nil || data == nil {
 		return headerStats{ok: false}
@@ -106,12 +119,33 @@ func renderHeader(version string, disk core.DiskSnapshot, s headerStats, width i
 	}
 
 	out := strings.Join(parts, sep)
+	if full, compact := s.watch.render(); full != "" {
+		out = withBadge(parts, sep, full, compact, width)
+	}
 	// Final safety net: never let the header exceed the terminal width, even if
 	// an unusually long disk/version string would otherwise push it over.
 	if width > 0 {
 		out = truncateToWidth(out, width)
 	}
 	return out
+}
+
+// withBadge appends the listening badge, trading detail for room: the full
+// badge, then the compact one, then the compact one replacing the last metric.
+// The badge is never truncated away.
+func withBadge(parts []string, sep, full, compact string, width int) string {
+	fits := func(p []string) bool { return width <= 0 || lipgloss.Width(strings.Join(p, sep)) <= width }
+	for _, b := range []string{full, compact} {
+		if p := append(append([]string{}, parts...), b); fits(p) {
+			return strings.Join(p, sep)
+		}
+	}
+	for n := len(parts) - 1; n >= 1; n-- {
+		if p := append(append([]string{}, parts[:n]...), compact); fits(p) {
+			return strings.Join(p, sep)
+		}
+	}
+	return compact
 }
 
 // renderThermal colors the thermal field: only real alerts (Throttled,

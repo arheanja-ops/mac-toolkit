@@ -530,6 +530,19 @@ is `Unknown` ("ignorance must not raise an alarm"). `IsThermalAlert` is an allow
 | MCP server version | `mcp.Implementation.Version` is a fixed `"1.0.0"` in `cmd/mcp.go` |
 
 
+## v1.11.0 — Listening mode
+
+- `internal/watch`: `Sampler` (light readings via `monitor.ReadLight`, rates from the
+  swap counters, `statfs` for disk) → `Evaluator` (sustained-threshold `Rules`, windows,
+  gap reset, escalation, resolution) → `Notifier` (osascript, cooldown, hourly cap) and
+  `Store` (daily JSONL, 7-day `Prune` limited to `YYYY-MM-DD.jsonl`). `Engine` ties them
+  on a ticker and exposes a concurrent-safe `Status`. `Summarize`/`Hourly` feed `history`
+  and the TUI.
+- `internal/core/reports.go`: `HistoryDir()` (sibling of `ReportsDir`).
+- `internal/tui`: `tui.Run` starts the engine; the header reuses its last sample;
+  `watch_view.go` adds the ALERTS views and the `n`/`w` keys.
+- Spec: `docs/specs/2026-11-25-watch-mode.md`.
+
 ## v1.10.0 — Report v2
 
 - `internal/reporter`: one `Report` model (`model.go`, `schema_version` 1) built once by

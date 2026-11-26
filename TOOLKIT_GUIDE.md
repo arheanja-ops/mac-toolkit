@@ -100,7 +100,7 @@ Tras una pantalla de bienvenida (banner + resumen del sistema), la TUI muestra:
   CLEAN (Preview, Select & clean), MEMORY (Overview, Swap & paging, Top apps), CPU
   (Overview, Load, Top apps, Thermal), PROCESSES (Top by CPU, Top by memory, By app,
   Summary), SYSTEM (Battery, System info, Network), REPORTS (Last report, Saved reports,
-  Save report, Open report) y SESSION (Quit / Salir).
+  Save report, Open report), ALERTS (Active alerts, History) y SESSION (Quit / Salir).
 - **Panel derecho** — resultado de la acción, con scroll. Responsive hasta 80x24.
 
 | Modo | Teclas |
@@ -127,6 +127,37 @@ guardan en `analysis_<fecha_hora>/` el reporte en md, json y html, más la varia
 `share/` (sin rutas ni nombres), e imprimen las rutas. `report` muestra el último reporte
 formateado (`--share` su variante, `--list` todos, `--open` abre el html); en la TUI,
 `o` hace lo mismo que Open report. El total recuperable nunca incluye el uso del volumen.
+
+**Modo escucha.** Mientras la TUI está abierta (o con `mac-toolkit watch`), el toolkit
+toma una muestra liviana cada 15 s con `sysctl`, `vm_stat`, `iostat` y `statfs`. Además
+lee `ps` cada 30 s y `pmset` cada 60 s; nunca usa `top`. Medido: ≈0,6 % de CPU y ~20 MB
+de RAM. Alerta solo cuando un problema se sostiene:
+
+| Alerta | Condición | Ventana |
+|--------|-----------|---------|
+| Presión de memoria | Warning / Critical | 2 min |
+| Swap casi lleno | swap usado > 90 % | 2 min |
+| Paginación intensa | swap-out > 20 MB/s | 2 min |
+| CPU saturada | carga por núcleo > 2 y CPU libre < 20 % | 3 min |
+| Carga con CPU libre | carga por núcleo > 2 y CPU libre > 50 % | 3 min |
+| Disco casi lleno | libre < 10 GB o < 5 % | inmediata |
+| Térmico | Throttled / Warning | 1 min |
+
+Las alertas llegan como notificaciones de macOS, con anti-spam:
+- 15 min de cooldown por regla, salvo que la alerta escale.
+- Como máximo 6 por hora.
+- El aviso de "resuelto" solo sale para las críticas.
+
+`n` las activa o desactiva y `w` pausa o reanuda la escucha; `--no-notify` arranca con
+las notificaciones apagadas. El header muestra `● escuchando` y `⚠ N` con las alertas
+activas.
+
+La categoría **ALERTS** tiene *Active alerts* (regla, severidad, desde cuándo, cifra) e
+*History* (últimas 24 h por hora). El historial se guarda en
+`~/Library/Application Support/mac-toolkit/history/AAAA-MM-DD.jsonl`, una línea por
+muestra (números y nombre de la app top, sin rutas ni PIDs), con 7 días de retención.
+`mac-toolkit history --since HH:MM` resume un rango. Es solo lectura: nunca mata
+procesos ni cambia nada.
 
 ### Menú lineal (fallback)
 
@@ -218,6 +249,8 @@ mac-toolkit network      # WiFi, tráfico, conexiones, conectividad
 ```bash
 mac-toolkit status           # Dominios y niveles de riesgo
 mac-toolkit report           # Ver el último reporte guardado (--share · --list · --open)
+mac-toolkit watch            # Modo escucha sin TUI (--no-notify)
+mac-toolkit history          # Resumen de las últimas 24 h (--since/--until HH:MM, --json)
 mac-toolkit mcp              # Iniciar MCP server (stdio)
 mac-toolkit completion zsh   # Autocompletado de shell (bash|zsh|fish|powershell)
 ```

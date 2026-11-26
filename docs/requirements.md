@@ -259,7 +259,7 @@ is attack surface and maintenance burden.
 | ------------- | ---------------------- |
 | Binary called `toolkit` | Command is `mac-toolkit` (release binary, or `go install` with private access); `make build` still writes `bin/toolkit` |
 | No subcommand → huh/bubbletea menu | No subcommand → two-pane TUI; the menu is `mac-toolkit menu` (promptui) |
-| "Global flags" `--execute`, `--domain`, `--mode`, `--save`, `--last`, `--timeout` | Per-command flags: `analyze` (`--domain`, `--min-size`, `--save`, `--share`, `--open`), `clean` (`--domain`, `--execute`, `--mode`), `full` (`--execute`, `--mode`), `report` (`--share`, `--list`, `--open`), `doctor` (`--no-ai`, `--json`); only `-v/--verbose` is global |
+| "Global flags" `--execute`, `--domain`, `--mode`, `--save`, `--last`, `--timeout` | Per-command flags: `analyze` (`--domain`, `--min-size`, `--save`, `--share`, `--open`), `clean` (`--domain`, `--execute`, `--mode`), `full` (`--execute`, `--mode`), `report` (`--share`, `--list`, `--open`), `watch` (`--no-notify`), `history` (`--since`, `--until`, `--json`), `tui` (`--no-notify`), `doctor` (`--no-ai`, `--json`); only `-v/--verbose` is global |
 | Go 1.22+ | `go 1.25.0` in `go.mod` |
 | Parallelism via errgroup; default timeout 120 s | goroutines + `sync.Mutex` (`core.RunAnalyzers`); timeout 180 s (`core.AnalyzerTimeoutSeconds`) |
 | Dependencies: gopsutil, huh, tablewriter, uuid, testify | Not used. Direct deps: cobra, bubbletea, lipgloss, bubbles, promptui, go-isatty, MCP go-sdk; stdlib tests |

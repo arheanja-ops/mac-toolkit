@@ -43,6 +43,18 @@ func ReportsDir() string {
 	return filepath.Join(os.TempDir(), "mac-toolkit", "reports")
 }
 
+// HistoryDirOverride redirects the watch history folder; tests only.
+var HistoryDirOverride string
+
+// HistoryDir is where the listening mode keeps its daily JSONL history: a
+// sibling of ReportsDir (<user config dir>/mac-toolkit/history).
+func HistoryDir() string {
+	if HistoryDirOverride != "" {
+		return HistoryDirOverride
+	}
+	return filepath.Join(filepath.Dir(ReportsDir()), "history")
+}
+
 // NewReportDir returns the folder path for a new run, e.g.
 // <ReportsDir>/analysis_20260102_150405. It does not create it.
 func NewReportDir(prefix string) string {

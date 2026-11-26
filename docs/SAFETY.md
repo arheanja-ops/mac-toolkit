@@ -155,6 +155,20 @@ destructivas (`mcp`) escribe un audit log JSON
 item) mediante `reporter.AuditReporter`. (`cmd/clean.go`, `cmd/docker_cleanup.go`,
 `cmd/mcp_destructive.go`, `internal/tui/clean.go`, `internal/reporter/audit.go`)
 
+### (h) Modo escucha: solo lee, notifica y guarda su historial
+
+- **Lectura liviana.** `watch`, la TUI y la categoría ALERTS solo ejecutan `sysctl`,
+  `vm_stat`, `iostat`, `ps` y `pmset` (sin shell) y leen el disco con `statfs`. No envían
+  señales, no matan procesos y no aplican ninguna acción correctiva.
+  (`internal/monitor/light.go`, `internal/watch/sample.go`)
+- **Notificaciones.** `osascript -e 'display notification …'` con argumentos y el texto
+  escapado; nunca llevan rutas ni PIDs. `--no-notify` y la tecla `n` las apagan, y en ese
+  caso `osascript` no se invoca. Los tests usan un runner falso.
+  (`internal/watch/notify.go`)
+- **Escrituras.** Solo `history/AAAA-MM-DD.jsonl` (0600) en la carpeta del toolkit. La
+  retención borra únicamente archivos regulares con ese patrón de nombre y más de 7 días,
+  dentro de esa carpeta; nunca otra cosa (con test). (`internal/watch/history.go`)
+
 ### (g) Docker: plan, gate `si` y audit
 
 `internal/docker` separa **planificar** de **aplicar**:
@@ -193,6 +207,8 @@ contenedores conservados, y esos rechazos se informan como fallos.
 | `analyze` / `status` / monitores / `doctor` | solo lectura | — (nunca borra) |
 | TUI — Analyze/Status/monitores (incl. vistas Memory y CPU)/Preview/Doctor/Last report/Saved reports | solo lectura | — (nunca borra ni envía señales a procesos) |
 | `analyze --save` / TUI Save report | escribe solo su reporte (md, json, html y share) en la carpeta de reportes | — (no borra nada) |
+| `watch` / TUI (modo escucha, ALERTS) | solo lectura + notificaciones | — (escribe solo su historial; poda sus `*.jsonl` de más de 7 días) |
+| `history` | solo lectura | — |
 | `report --open` / TUI Open report (`o`) | abre el html del reporte con `open` | — (solo archivos de la carpeta de reportes) |
 | TUI — Clean (solo items `safe`) | preview/selección | selección explícita + confirmación `si` (blacklist + audit) |
 | `clean` | dry-run (preview) | `--execute` + aprobación + confirmación `si` |

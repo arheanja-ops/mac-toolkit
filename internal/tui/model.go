@@ -242,6 +242,10 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openShortcut(viewCPU)
 	case "o":
 		return m.openShortcut(viewOpenReport)
+	case "n":
+		return m.toggleWatch(false)
+	case "w":
+		return m.toggleWatch(true)
 	case "r":
 		if m.openView != viewNone {
 			return m.runView(m.openView)
@@ -249,6 +253,25 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.forwardToFocused(msg)
+}
+
+// toggleWatch flips the listening (w) or the notifications (n). The header
+// badge is refreshed at once, and an open Active alerts view is re-rendered.
+// Without an engine (tests, no TTY) the keys do nothing.
+func (m model) toggleWatch(pause bool) (tea.Model, tea.Cmd) {
+	if watchEngine == nil {
+		return m, nil
+	}
+	if pause {
+		watchEngine.TogglePause()
+	} else {
+		watchEngine.ToggleNotify()
+	}
+	m.hdr.watch = readWatchBadge()
+	if m.openView == viewAlerts {
+		return m.runView(viewAlerts)
+	}
+	return m, nil
 }
 
 // openShortcut opens a view from its letter key and moves the menu cursor onto
@@ -610,7 +633,7 @@ func renderFooter(mode cleanMode, width int) string {
 		hints = []struct{ key, desc string }{
 			{"↑↓", "nav"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
 			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
-			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"o", "html"}, {"r", "refrescar"},
+			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"o", "html"}, {"n", "notif"}, {"w", "escucha"}, {"r", "refrescar"},
 			{"/", "filtrar"}, {"q", "salir"},
 		}
 		// When the full set does not fit the width it overflows, so drop
