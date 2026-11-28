@@ -39,6 +39,12 @@ repositorio (archivos citados entre paréntesis).
   reportes; cualquier otra ruta se rechaza. Es la única vez que el toolkit lanza otro
   programa por el usuario, y los tests lo sustituyen para no abrir nada.
   (`internal/reporter/open.go`)
+- **Exportar un reporte.** `report --out`, `analyze --out` y `Export report` (`e`) solo
+  leen un reporte de la carpeta de reportes y lo copian a una subcarpeta **nueva**
+  `mac-toolkit-<reporte>[-share]` del destino elegido (ruta absoluta o `~/`; se crea si
+  falta). Nunca sobrescriben: si existe, usan `-2`, `-3`…, y cada archivo se crea con
+  `O_EXCL` y permisos `0600`. Se rechazan las rutas relativas, un destino que es un archivo
+  y un destino dentro de la carpeta de reportes. (`internal/reporter/export.go`)
 (`cmd/doctor.go` — "strictly read-only — it never deletes").
 
 - **Estados térmicos.** Clasificar `pmset -g therm` como `Normal`, `Throttled`,
@@ -210,6 +216,7 @@ contenedores conservados, y esos rechazos se informan como fallos.
 | `watch` / TUI (modo escucha, ALERTS) | solo lectura + notificaciones | — (escribe solo su historial; poda sus `*.jsonl` de más de 7 días) |
 | `history` | solo lectura | — |
 | `report --open` / TUI Open report (`o`) | abre el html del reporte con `open` | — (solo archivos de la carpeta de reportes) |
+| `report --out` / `analyze --out` / TUI Export report (`e`) | copia el reporte a una carpeta nueva del destino elegido | — (no borra ni sobrescribe nada) |
 | TUI — Clean (solo items `safe`) | preview/selección | selección explícita + confirmación `si` (blacklist + audit) |
 | `clean` | dry-run (preview) | `--execute` + aprobación + confirmación `si` |
 | Estados térmicos (`system`, header, `mac_system`) | solo lectura | — (nunca modifica nada) |

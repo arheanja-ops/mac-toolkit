@@ -23,6 +23,7 @@ const (
 	selectMode
 	confirmMode
 	cleaningMode
+	exportMode // the export form of REPORTS (folder + variant), not a clean step
 )
 
 // cleanRow is one selectable line in the select view (spec Data model). markable

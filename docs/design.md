@@ -19,7 +19,7 @@ mac-toolkit/
 │   ├── clean.go                  # clean command (analyze → approve → delete)
 │   ├── full.go                   # full command (analyze → save → clean)
 │   ├── status.go                 # status command (domain list + risk levels)
-│   ├── report.go                 # report command (last report formatted; --share, --list, --open)
+│   ├── report.go                 # report command (last report formatted; --share, --list, --open, --out)
 │   ├── battery.go                # battery monitor command
 │   ├── system.go                 # system monitor command
 │   ├── processes.go              # processes monitor command
@@ -556,7 +556,8 @@ is `Unknown` ("ignorance must not raise an alarm"). `IsThermalAlert` is an allow
 - Reclaimable total = safe + review, without the `disk` domain (volume = context).
 - `internal/core/reports.go`: `ReportEntry` gains `Dir`, `Formats`, `HasShare`.
 - `internal/tui/report_render.go`: `RenderReport(r, w)`, shared by the TUI (Last report)
-  and `mac-toolkit report`. `reports_view.go` adds Open report (`o`).
+  and `mac-toolkit report`. `reports_view.go` adds Open report (`o`); `export_view.go`
+  adds Export report (`e`), a form with the destination folder and the variant.
 - Spec: `docs/specs/2026-11-25-report-v2.md`.
 
 ## v1.9.0 — Categories, process views and reports

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-11-27
+
+### Added
+- **Exportar un reporte a una carpeta elegida**: `analyze --out <carpeta>` (implica
+  `--save`) y `report --out <carpeta>` copian md, json y html a una carpeta nueva
+  `mac-toolkit-<reporte>` dentro del destino; con `--share`, solo la variante share
+  (`…-share`). Acepta `~/`, crea el destino si falta y nunca sobrescribe (añade `-2`, `-3`…).
+- TUI: **Export report** en REPORTS y tecla `e`. Pide la carpeta (por defecto
+  `~/Downloads`), `Tab` alterna completo/share, `⏎` exporta y `Esc` cancela; mientras se
+  escribe, los atajos no se disparan.
+
 ## [1.11.0] - 2026-11-25
 
 ### Added

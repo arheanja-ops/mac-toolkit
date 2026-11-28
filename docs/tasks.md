@@ -149,6 +149,7 @@ Makefile, build verification, final cleanup.
 - [x] **9.6b** (v1.9.0) Menú por categorías; vistas Memory/CPU/Processes/Reports; `Save report`; carpeta de reportes fija (`core.ReportsDir`); CPU% del header vía `iostat`; veredicto "Carga alta con CPU libre". Spec `docs/specs/2026-11-25-tui-categories.md`
 - [x] **9.6c** (v1.10.0) Report v2: modelo único (md, json y html), variante share, `report` formateado, `--share`/`--open`, Last report estructurado y `o` = Open report. Spec `docs/specs/2026-11-25-report-v2.md`
 - [x] **9.6d** (v1.11.0) Modo escucha: muestreo liviano, alertas sostenidas, notificaciones con anti-spam, ALERTS en la TUI, `watch` e `history`, historial de 7 días. Spec `docs/specs/2026-11-25-watch-mode.md`
+- [x] **9.6e** (v1.12.0) Exportar reportes: `report --out`, `analyze --out` y Export report (`e`) en la TUI; carpeta nueva por exportación, sin sobrescribir
 - [ ] **9.7** TUI-2.1: limpiar items `warn`/`danger` desde la TUI con confirmación por item (no implementado)
 - [ ] **9.8** Acciones Docker desde la TUI (no implementado)
 
