@@ -72,6 +72,10 @@ type model struct {
 	cursor       int           // highlighted row in selectMode
 	confirmInput string        // text typed into the F3 confirmation modal
 	cleanResult  *cleanSummary // result shown in cleaningMode once deletion ends
+
+	// Export form (exportMode): destination folder being typed and variant.
+	exportInput string
+	exportShare bool
 }
 
 // newModel builds the initial model with the read-only action set. It does not
@@ -204,6 +208,8 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.onConfirmKey(msg)
 	case cleaningMode:
 		return m.onCleaningKey(msg)
+	case exportMode:
+		return m.onExportKey(msg)
 	}
 
 	// While filtering, let the list consume keys (Esc/Enter close the filter).
@@ -242,6 +248,8 @@ func (m model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openShortcut(viewCPU)
 	case "o":
 		return m.openShortcut(viewOpenReport)
+	case "e":
+		return m.enterExport(), nil
 	case "n":
 		return m.toggleWatch(false)
 	case "w":
@@ -340,6 +348,9 @@ func (m model) execSelected() (tea.Model, tea.Cmd) {
 	}
 	if it.action.openClean {
 		return m.enterSelect(), nil
+	}
+	if it.action.openExport {
+		return m.enterExport(), nil
 	}
 	if it.action.run == nil {
 		return m, nil
@@ -553,6 +564,9 @@ func (m model) cleanDetail() string {
 		return padLines(renderSelect(m.rows, m.cursor, rightW))
 	case cleaningMode:
 		return padLines(renderCleaning(m.spinner.View(), m.cleanResult))
+	case exportMode:
+		_, rightW, _ := m.paneGeometry()
+		return padLines(renderExportForm(m.exportInput, m.exportShare, usableWidth(rightW)))
 	case confirmMode:
 		// The modal is overlaid in View(); behind it we keep the select list so
 		// the frame size stays stable.
@@ -570,6 +584,8 @@ func (m model) detailTitle() string {
 		return "CLEAN"
 	case cleaningMode:
 		return "CLEANING"
+	case exportMode:
+		return "REPORTS · EXPORT"
 	default:
 		if t, ok := viewTitles[m.openView]; ok {
 			return t
@@ -628,12 +644,16 @@ func renderFooter(mode cleanMode, width int) string {
 		}
 	case cleaningMode:
 		hints = []struct{ key, desc string }{{"⏎", "volver"}}
+	case exportMode:
+		hints = []struct{ key, desc string }{
+			{"⏎", "exportar"}, {"Tab", "completo/share"}, {"Esc", "cancelar"},
+		}
 	default:
 		// Full hint set for wide terminals.
 		hints = []struct{ key, desc string }{
 			{"↑↓", "nav"}, {"Tab", "panel"}, {"⏎", "ejecutar"},
 			{"a", "analyze"}, {"c", "clean"}, {"p", "preview"},
-			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"o", "html"}, {"n", "notif"}, {"w", "escucha"}, {"r", "refrescar"},
+			{"d", "doctor"}, {"m", "memory"}, {"u", "cpu"}, {"o", "html"}, {"e", "exportar"}, {"n", "notif"}, {"w", "escucha"}, {"r", "refrescar"},
 			{"/", "filtrar"}, {"q", "salir"},
 		}
 		// When the full set does not fit the width it overflows, so drop

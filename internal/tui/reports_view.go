@@ -186,6 +186,7 @@ func runSaveReport(width int) (string, error) {
 		kvLine("Compartir", "share/ (sin rutas ni nombres)", w),
 		"",
 		hdrLabelStyle.Render(truncateToWidth("Léelo en REPORTS → Last report · o abre el html.", w)),
+		hdrLabelStyle.Render(truncateToWidth("e: exportarlo a otra carpeta (p. ej. ~/Downloads).", w)),
 	}
 	return strings.Join(lines, "\n") + "\n", nil
 }

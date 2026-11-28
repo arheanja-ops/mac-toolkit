@@ -18,6 +18,7 @@ var (
 	reportList  bool
 	reportShare bool
 	reportOpen  bool
+	reportOut   string
 )
 
 var reportCmd = &cobra.Command{
@@ -26,9 +27,10 @@ var reportCmd = &cobra.Command{
 	Long: "Show the last saved report, formatted for the terminal. Reports live in a fixed " +
 		"folder, so the command works from any directory. Create one with `analyze --save`.\n\n" +
 		"--share shows the share variant (no paths, file names or app names), --open opens " +
-		"the html in the browser and --list lists every saved report.",
+		"the html in the browser, --list lists every saved report and --out copies the last " +
+		"report to a folder you choose (with --share, only the share variant).",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runReport(reportList, reportShare, reportOpen); err != nil {
+		if err := runReport(reportList, reportShare, reportOpen, reportOut); err != nil {
 			core.Error("Reports: %v", err)
 		}
 	},
@@ -38,10 +40,11 @@ func init() {
 	reportCmd.Flags().BoolVar(&reportList, "list", false, "list the saved reports")
 	reportCmd.Flags().BoolVar(&reportShare, "share", false, "use the share variant (no paths or names)")
 	reportCmd.Flags().BoolVar(&reportOpen, "open", false, "open the html report in the browser")
+	reportCmd.Flags().StringVar(&reportOut, "out", "", "copy the last report to this folder (e.g. ~/Downloads)")
 	rootCmd.AddCommand(reportCmd)
 }
 
-func runReport(list, share, open bool) error {
+func runReport(list, share, open bool, out string) error {
 	entries, err := core.ListReports()
 	if err != nil {
 		return err
@@ -56,6 +59,9 @@ func runReport(list, share, open bool) error {
 		return nil
 	}
 	last := entries[0]
+	if out != "" {
+		return exportReport(last.Dir, out, share)
+	}
 	if open {
 		p, err := reporter.OpenReport(last.Dir, share)
 		if err != nil {
@@ -101,6 +107,25 @@ func printReportList(entries []core.ReportEntry) {
 		}
 		fmt.Printf("  %s  %9s  %s\n", e.Name, core.FormatBytes(e.Size), formats)
 	}
+}
+
+// exportReport copies a saved run (or its share variant) into a new folder
+// under out and prints where each file landed. "~/" is expanded.
+func exportReport(runDir, out string, share bool) error {
+	home, _ := os.UserHomeDir()
+	dir, files, err := reporter.ExportReport(runDir, reporter.ExpandHome(out, home), share)
+	if err != nil {
+		return err
+	}
+	label := "Reporte exportado"
+	if share {
+		label = "Reporte para compartir exportado (sin rutas ni nombres)"
+	}
+	core.Info("%s a %s:", label, dir)
+	for _, f := range files {
+		fmt.Println(f)
+	}
+	return nil
 }
 
 // terminalWidth reads $COLUMNS (set by most shells) and falls back to 80. It is

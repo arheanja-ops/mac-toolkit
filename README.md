@@ -104,7 +104,7 @@ Menú (`internal/tui/actions.go`):
 | CPU | Overview · Load · Top apps · Thermal |
 | PROCESSES | Top by CPU · Top by memory · By app · Summary |
 | SYSTEM | Battery · System info · Network |
-| REPORTS | Last report · Saved reports · Save report · Open report |
+| REPORTS | Last report · Saved reports · Save report · Open report · Export report |
 | ALERTS | Active alerts · History |
 | SESSION | Quit / Salir |
 
@@ -123,6 +123,7 @@ Menú (`internal/tui/actions.go`):
 | `m` | Memory (RAM, presión, swap, top apps; solo lectura) |
 | `u` | CPU (user/sys/idle, load por núcleo, top apps) |
 | `o` | Open report: abre el html del último reporte en el navegador |
+| `e` | Export report: copia el último reporte a una carpeta (por defecto `~/Downloads`; `Tab` completo/share) |
 | `n` | Notificaciones del modo escucha on/off |
 | `w` | Pausar/reanudar el modo escucha |
 | `r` | Refrescar la vista abierta (cualquiera del menú); sin vista abierta no hace nada |
@@ -160,8 +161,10 @@ línea, sin scripts ni recursos remotos) e imprimible.
 ancho); **Saved reports** lista fecha, tamaño, formatos y variantes; **Open report** (`o`)
 y `report --open` abren el html con `open`. El audit de `clean` también se guarda en esa
 carpeta (`cleanup_<fecha_hora>/audit.json`). Sin reportes, la TUI explica cómo crear el
-primero. **Save report** es la única entrada de la TUI que escribe, y solo dentro de esa
-carpeta.
+primero. **Save report** escribe solo dentro de esa carpeta. **Export report** (`e`),
+`report --out` y `analyze --out` copian el reporte a una carpeta que eliges (p. ej.
+`~/Downloads`), siempre en una subcarpeta nueva `mac-toolkit-<reporte>` y sin sobrescribir
+nada; con `--share` (o `Tab` en la TUI) se exporta solo la variante share.
 
 #### ¿Qué es "memoria usada"?
 
@@ -253,6 +256,7 @@ mac-toolkit analyze --domain dev_caches      # Solo un dominio
 mac-toolkit analyze --save                   # Guardar reporte md + json + html (+ share)
 mac-toolkit analyze --save --share           # Igual, e imprime las rutas de la variante share
 mac-toolkit analyze --open                   # Guardar y abrir el html en el navegador
+mac-toolkit analyze --out ~/Downloads        # Guardar y copiar el reporte a Descargas
 mac-toolkit clean --execute --mode checklist # Limpieza con checklist (dry-run por defecto)
 mac-toolkit full --execute                   # Analizar + guardar + limpiar
 
@@ -280,6 +284,8 @@ mac-toolkit report         # Último reporte guardado, formateado
 mac-toolkit report --share # Su variante share (sin rutas ni nombres)
 mac-toolkit report --list  # Reportes guardados con formatos y variantes
 mac-toolkit report --open  # Abrir el html del último reporte
+mac-toolkit report --out ~/Downloads          # Copiar el último reporte a una carpeta
+mac-toolkit report --share --out ~/Downloads  # Solo la variante share
 ```
 
 ## Dominios de análisis (11)

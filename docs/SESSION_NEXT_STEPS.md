@@ -1,12 +1,20 @@
 # 📍 DÓNDE VAMOS — Punto de retomada
 
-**Última actualización:** 2026-11-25
-**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.11.0**
+**Última actualización:** 2026-11-27
+**Repo:** `arheanja-ops/mac-toolkit` · rama `main` · último release **v1.12.0**
 
 ## ⏭️ Siguiente
 
-Sin versión planificada. Ideas fuera de alcance de v1.11.0: daemon/launchd con la
-herramienta cerrada, tool MCP de historial y umbrales configurables.
+v1.13.0: chat con IA dentro del toolkit (TUI y `mac-toolkit chat`), con acciones bajo
+confirmación humana. Ideas pendientes: daemon/launchd con la herramienta cerrada, tool MCP
+de historial y umbrales configurables.
+
+## ✅ Resuelto en v1.12.0 "exportar reportes"
+
+- `report --out <carpeta>` y `analyze --out <carpeta>` copian el reporte (o su variante
+  share con `--share`) a una subcarpeta nueva del destino, sin sobrescribir.
+- TUI: Export report (`e`) con carpeta editable (`~/Downloads` por defecto) y `Tab`
+  completo/share.
 
 ## ✅ Resuelto en v1.11.0 "modo escucha"
 

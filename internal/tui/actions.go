@@ -28,6 +28,9 @@ type actionItem struct {
 	// the model enters the interactive select mode (F2). Like quit, this is a
 	// control action the model handles specially rather than via run().
 	openClean bool
+	// openExport marks "Export report": it opens the export form (folder and
+	// variant) instead of running.
+	openExport bool
 	// view marks the dedicated, refreshable views ('r' re-runs the open one).
 	view viewID
 }
@@ -38,9 +41,10 @@ func viewItem(group, label string, v viewID) actionItem {
 }
 
 // buildActions returns the ordered menu, grouped by category. Everything is
-// read-only except two flows that are gated on their own: "Select & clean"
-// (opens the F2/F3 select-and-confirm flow, never deletes directly) and "Save
-// report" (writes only report files into the toolkit's own reports folder).
+// read-only except three flows that are gated on their own: "Select & clean"
+// (opens the F2/F3 select-and-confirm flow, never deletes directly), "Save
+// report" (writes only report files into the toolkit's own reports folder) and
+// "Export report" (copies a saved report into a new folder the user typed).
 func buildActions() []actionItem {
 	return []actionItem{
 		viewItem("Health", doctorLabel, viewDoctor),
@@ -66,6 +70,7 @@ func buildActions() []actionItem {
 		viewItem("Reports", "Saved reports", viewSavedReports),
 		viewItem("Reports", "Save report", viewSaveReport),
 		viewItem("Reports", "Open report", viewOpenReport),
+		{label: "Export report", group: "Reports", openExport: true},
 		viewItem("Alerts", "Active alerts", viewAlerts),
 		viewItem("Alerts", "History", viewHistory),
 		// Session controls. Quit has no run(); it is handled specially by the
